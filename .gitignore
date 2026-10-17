@@ -1,0 +1,17 @@
+# Dati personali: NON vanno mai pubblicati
+aura_memoria.json
+aura_memoria.json.bak
+*.bak
+
+# File temporanei
+temp/
+input_audio.wav
+aura_parte_*.mp3
+aura_parte_*.wav
+__pycache__/
+*.pyc
+*.log
+.env
+
+# Immagine personale dell'avatar (se la aggiungi tu in dashboard/aura.jpg)
+dashboard/aura.jpg
