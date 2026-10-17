@@ -1,0 +1,7 @@
+requests
+sounddevice
+soundfile
+psutil
+opencv-python
+ddgs
+openai-whisper

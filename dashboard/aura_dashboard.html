@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AURA — Sistema Operativo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --cyan: #00f5ff;
+    --cyan-dim: rgba(0,245,255,0.15);
+    --cyan-mid: rgba(0,245,255,0.4);
+    --cyan-glow: rgba(0,245,255,0.08);
+    --dark: #020810;
+    --dark2: #050e1a;
+    --panel: rgba(5,20,40,0.85);
+    --text: #cceeff;
+    --text-dim: rgba(180,220,255,0.5);
+    --amber: #ffaa00;
+    --amber-dim: rgba(255,170,0,0.2);
+  }
+
+  body {
+    background: var(--dark);
+    color: var(--text);
+    font-family: 'Rajdhani', sans-serif;
+    height: 100vh;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 400px 1fr 420px;
+    grid-template-rows: 48px 1fr 120px;
+  }
+
+  /* TOPBAR */
+  .topbar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    border-bottom: 1px solid var(--cyan-mid);
+    background: var(--panel);
+    position: relative;
+  }
+  .topbar::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  }
+  .top-brand {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 13px;
+    color: var(--cyan);
+    letter-spacing: 4px;
+  }
+  .top-status {
+    display: flex;
+    gap: 24px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .status-dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #00ff88;
+    margin-right: 6px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  .status-dot.amber { background: var(--amber); }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  .top-time {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 12px;
+    color: var(--cyan);
+  }
+
+  /* LEFT PANEL */
+  .panel-left {
+    background: var(--panel);
+    border-right: 1px solid var(--cyan-dim);
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow: hidden;
+  }
+
+  .panel-left { overflow-y: auto; overflow-x: hidden; }
+
+  /* Evidenzia la casella quando trascini un'immagine sulla pagina */
+  body.trascino .panel-right .panel-section[data-label="SCRIVI AD AURA"] {
+    border-color: var(--cyan);
+    box-shadow: 0 0 14px rgba(0,245,255,0.45);
+  }
+
+  /* INTERFACCE ATTIVE (toggle) */
+  .iface-row { cursor: pointer; user-select: none; }
+  .iface-row:hover .metric-label { color: var(--cyan); }
+  .iface-right { display: flex; align-items: center; gap: 10px; }
+  .toggle {
+    width: 34px; height: 16px;
+    border: 1px solid var(--cyan-mid);
+    border-radius: 10px;
+    background: rgba(0,245,255,0.05);
+    position: relative;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+  .toggle .knob {
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: all 0.2s;
+  }
+  .toggle.on { background: rgba(0,255,136,0.15); border-color: #00ff88; }
+  .toggle.on .knob { left: 20px; background: #00ff88; box-shadow: 0 0 6px #00ff88; }
+  .mic-btn.spento { opacity: 0.35; cursor: not-allowed; filter: grayscale(1); }
+
+  .panel-section {
+    border: 1px solid var(--cyan-dim);
+    border-radius: 4px;
+    padding: 12px;
+    position: relative;
+  }
+  .panel-section::before {
+    content: attr(data-label);
+    position: absolute;
+    top: -8px; left: 10px;
+    background: var(--dark2);
+    padding: 0 6px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--cyan);
+    letter-spacing: 2px;
+  }
+
+  .metric-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+    font-size: 13px;
+  }
+  .metric-label { color: var(--text-dim); font-size: 12px; }
+  .metric-value {
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--cyan);
+    font-size: 12px;
+  }
+  .metric-value.green { color: #00ff88; }
+  .metric-value.amber { color: var(--amber); }
+
+  .bar-wrap {
+    height: 3px;
+    background: var(--cyan-dim);
+    border-radius: 2px;
+    margin: 4px 0 8px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    background: var(--cyan);
+    border-radius: 2px;
+    animation: barAnim 3s ease-in-out infinite alternate;
+  }
+  @keyframes barAnim {
+    from { opacity: 0.6; }
+    to { opacity: 1; }
+  }
+
+  .log-entry {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(0,245,255,0.05);
+    line-height: 1.4;
+  }
+  .log-entry .ts { color: var(--cyan); margin-right: 6px; }
+  .log-entry.ok .msg { color: #00ff88; }
+  .log-entry.warn .msg { color: var(--amber); }
+
+  /* CENTER — AURA */
+  .center {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 0;
+  }
+
+  .aura-bg {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 70% at 50% 60%, rgba(0,245,255,0.04) 0%, transparent 70%),
+      radial-gradient(ellipse 40% 30% at 50% 90%, rgba(0,100,200,0.08) 0%, transparent 60%);
+  }
+
+  .scan-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--cyan-mid), transparent);
+    animation: scan 8s linear infinite;
+    pointer-events: none;
+  }
+  @keyframes scan {
+    0% { top: -2px; opacity: 0; }
+    5% { opacity: 1; }
+    95% { opacity: 0.3; }
+    100% { top: 100%; opacity: 0; }
+  }
+
+  .aura-frame {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    max-width: 800px;
+  }
+
+  .aura-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
+    filter: saturate(0.95) brightness(1.08);
+    mix-blend-mode: lighten;
+  }
+
+  .aura-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to bottom,
+      transparent 0%,
+      transparent 50%,
+      rgba(0,245,255,0.03) 70%,
+      rgba(2,8,16,0.8) 100%
+    );
+    pointer-events: none;
+  }
+
+  /* Corner brackets */
+  .corner {
+    position: absolute;
+    width: 20px; height: 20px;
+    border-color: var(--cyan);
+    border-style: solid;
+    opacity: 0.6;
+  }
+  .corner.tl { top: 0; left: 0; border-width: 2px 0 0 2px; }
+  .corner.tr { top: 0; right: 0; border-width: 2px 2px 0 0; }
+  .corner.bl { bottom: 0; left: 0; border-width: 0 0 2px 2px; }
+  .corner.br { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
+
+  .mic-btn {
+    position: absolute;
+    bottom: 108px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: 2px solid var(--cyan);
+    background: rgba(0,245,255,0.08);
+    color: var(--cyan);
+    font-size: 26px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    box-shadow: 0 0 20px rgba(0,245,255,0.2);
+  }
+  .mic-btn:hover { background: rgba(0,245,255,0.2); box-shadow: 0 0 30px rgba(0,245,255,0.4); }
+  .mic-btn.listening { background: rgba(255,50,50,0.2); border-color: #ff3333; color: #ff3333; animation: micPulse 1s ease-in-out infinite; }
+  .mic-btn.thinking { background: rgba(255,170,0,0.2); border-color: var(--amber); color: var(--amber); }
+  @keyframes micPulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(255,50,50,0.3); }
+    50% { box-shadow: 0 0 40px rgba(255,50,50,0.7); }
+  }
+  .stato-label {
+    position: absolute;
+    bottom: 88px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    color: var(--cyan);
+    letter-spacing: 2px;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  .aura-name {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 3;
+  }
+  .aura-name h1 {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 28px;
+    color: var(--cyan);
+    letter-spacing: 12px;
+    text-shadow: 0 0 20px var(--cyan), 0 0 40px rgba(0,245,255,0.3);
+  }
+  .aura-name p {
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 4px;
+    font-family: 'Share Tech Mono', monospace;
+  }
+
+  /* Voice wave */
+  .voice-wrap {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 3px;
+    align-items: center;
+    z-index: 3;
+  }
+  .wave-bar {
+    width: 3px;
+    background: var(--cyan);
+    border-radius: 2px;
+    opacity: 0.4;
+    animation: wave 1.2s ease-in-out infinite;
+  }
+  .wave-bar:nth-child(1) { height: 8px; animation-delay: 0s; }
+  .wave-bar:nth-child(2) { height: 16px; animation-delay: 0.1s; }
+  .wave-bar:nth-child(3) { height: 24px; animation-delay: 0.2s; }
+  .wave-bar:nth-child(4) { height: 32px; animation-delay: 0.15s; }
+  .wave-bar:nth-child(5) { height: 20px; animation-delay: 0.25s; }
+  .wave-bar:nth-child(6) { height: 14px; animation-delay: 0.05s; }
+  .wave-bar:nth-child(7) { height: 8px; animation-delay: 0.3s; }
+  @keyframes wave {
+    0%, 100% { transform: scaleY(0.4); opacity: 0.3; }
+    50% { transform: scaleY(1); opacity: 0.8; }
+  }
+
+  /* RIGHT PANEL */
+  .panel-right {
+    background: var(--panel);
+    border-left: 1px solid var(--cyan-dim);
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow: hidden;
+  }
+
+  .chat-preview {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .chat-msg {
+    font-size: 13px;
+    line-height: 1.6;
+    padding: 10px 12px;
+    border-radius: 4px;
+    max-width: 98%;
+  }
+  .chat-msg.utente {
+    background: rgba(0,100,200,0.15);
+    border-left: 2px solid rgba(0,150,255,0.5);
+    color: var(--text);
+    align-self: flex-start;
+  }
+  .chat-msg.aura {
+    background: rgba(0,245,255,0.06);
+    border-left: 2px solid var(--cyan-mid);
+    color: var(--text);
+    align-self: flex-start;
+  }
+  .chat-who {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 2px;
+    margin-bottom: 3px;
+  }
+  .chat-who.utente { color: rgba(0,150,255,0.8); }
+  .chat-who.aura { color: var(--cyan); }
+
+  .typing-indicator {
+    display: flex;
+    gap: 4px;
+    padding: 8px 10px;
+    align-items: center;
+  }
+  .typing-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--cyan);
+    animation: typing 1.4s ease-in-out infinite;
+    opacity: 0.5;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typing {
+    0%, 100% { transform: translateY(0); opacity: 0.3; }
+    50% { transform: translateY(-4px); opacity: 1; }
+  }
+
+  /* BOTTOM BAR */
+  .bottom-bar {
+    grid-column: 1 / -1;
+    background: var(--panel);
+    border-top: 1px solid var(--cyan-dim);
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 0;
+    position: relative;
+  }
+  .bottom-bar::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  }
+
+  .bottom-module {
+    flex: 1;
+    padding: 12px 20px;
+    border-right: 1px solid var(--cyan-dim);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+  }
+  .bottom-module:last-child { border-right: none; }
+  .module-label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    margin-bottom: 4px;
+  }
+  .module-value {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 14px;
+    color: var(--cyan);
+  }
+  .module-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .mini-bars {
+    display: flex;
+    gap: 2px;
+    align-items: flex-end;
+    height: 30px;
+  }
+  .mini-bar {
+    width: 8px;
+    background: var(--cyan-mid);
+    border-radius: 1px;
+    animation: miniWave 2s ease-in-out infinite;
+  }
+  @keyframes miniWave {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="top-brand">AURA_OS v2.0</div>
+  <div class="top-status">
+    <span><span class="status-dot"></span>LM STUDIO ONLINE</span>
+    <span><span class="status-dot"></span>COMFYUI ONLINE</span>
+    <span><span class="status-dot amber"></span>EDGE TTS ONLINE</span>
+    <span><span class="status-dot"></span>SERVER ONLINE</span>
+  </div>
+  <div class="top-time" id="clock">--:--:--</div>
+</header>
+
+<!-- LEFT PANEL -->
+<aside class="panel-left">
+
+  <div class="panel-section" data-label="SISTEMA">
+    <div class="metric-row">
+      <span class="metric-label">Modello</span>
+      <span class="metric-value">LM Studio</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-label">GPU</span>
+      <span class="metric-value green" id="gpu-nome">n/d</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-label">VRAM</span>
+      <span class="metric-value" id="vram-val">n/d</span>
+    </div>
+    <div class="bar-wrap"><div class="bar-fill" id="vram-bar" style="width:0%"></div></div>
+    <div class="metric-row">
+      <span class="metric-label">RAM</span>
+      <span class="metric-value" id="ram-val">-- / -- GB</span>
+    </div>
+    <div class="bar-wrap"><div class="bar-fill" id="ram-bar" style="width:0%; animation-delay:0.5s"></div></div>
+    <div class="metric-row">
+      <span class="metric-label">Uso GPU</span>
+      <span class="metric-value green" id="gpu-uso">n/d</span>
+    </div>
+  </div>
+
+  <div class="panel-section" data-label="IMMAGINI">
+    <div class="metric-row">
+      <span class="metric-label">Motore</span>
+      <span class="metric-value">ComfyUI</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-label">Modello</span>
+      <span class="metric-value">RealisticVision V6</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-label">Risoluzione</span>
+      <span class="metric-value">1024×1024</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-label">Sampler</span>
+      <span class="metric-value">dpmpp_2m / karras</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-label">Steps</span>
+      <span class="metric-value">25 + 18</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-label">Hires fix</span>
+      <span class="metric-value green">×2 · 0.5</span>
+    </div>
+  </div>
+
+  <div class="panel-section" data-label="INTERFACCE ATTIVE">
+    <div class="metric-row iface-row" onclick="toggleInterfaccia('microfono')" title="Clicca per accendere/spegnere">
+      <span class="metric-label">🎤 Microfono</span>
+      <span class="iface-right">
+        <span class="metric-value green" id="iface-microfono-txt">ATTIVO</span>
+        <span class="toggle on" id="iface-microfono"><span class="knob"></span></span>
+      </span>
+    </div>
+    <div class="metric-row iface-row" onclick="toggleInterfaccia('webcam')" title="Clicca per accendere/spegnere">
+      <span class="metric-label">👁️ Webcam Vision</span>
+      <span class="iface-right">
+        <span class="metric-value green" id="iface-webcam-txt">ATTIVO</span>
+        <span class="toggle on" id="iface-webcam"><span class="knob"></span></span>
+      </span>
+    </div>
+  </div>
+
+  <div class="panel-section" data-label="IMMAGINE GENERATA" id="img-panel" style="display:none; flex-shrink:0;">
+    <img id="generated-img" src="" alt="Immagine generata da Aura"
+      style="width:100%; border-radius:4px; border:1px solid var(--cyan-dim); cursor:pointer;"
+      onclick="apriImmagineGrande(this.src)"
+      title="Clicca per ingrandire">
+    <div style="font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--text-dim); margin-top:4px; text-align:center; letter-spacing:1px;">CLICCA PER INGRANDIRE</div>
+  </div>
+
+  <div class="panel-section" data-label="LOG">
+    <div class="log-entry ok"><span class="ts">--:--</span><span class="msg">Dashboard avviata</span></div>
+  </div>
+
+</aside>
+
+<!-- CENTER -->
+<main class="center">
+  <div class="aura-bg"></div>
+  <div class="scan-line"></div>
+
+  <div class="aura-frame">
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+    <img class="aura-img" src="aura.jpg" alt="Aura" onerror="this.style.display='none'">
+    <div class="aura-overlay"></div>
+  </div>
+
+  <div class="voice-wrap">
+    <div class="wave-bar"></div>
+    <div class="wave-bar"></div>
+    <div class="wave-bar"></div>
+    <div class="wave-bar"></div>
+    <div class="wave-bar"></div>
+    <div class="wave-bar"></div>
+    <div class="wave-bar"></div>
+  </div>
+
+  <button class="mic-btn" id="micBtn" onclick="parlaAdAura()" title="Parla con Aura">🎤</button>
+  <div class="stato-label" id="statoLabel">IN ATTESA</div>
+
+  <div class="aura-name">
+    <h1>AURA</h1>
+    <p>intelligenza digitale</p>
+  </div>
+</main>
+
+<!-- RIGHT PANEL -->
+<aside class="panel-right">
+
+  <div class="panel-section" data-label="CHAT LIVE" style="flex:1; overflow:hidden; display:flex; flex-direction:column;">
+    <div class="chat-preview">
+      <div id="chat-messages" style="flex:1; overflow-y:auto; display:flex; flex-direction:column; gap:6px; padding-right:4px;">
+        <div class="chat-msg aura">
+          <div class="chat-who aura">AURA</div>
+          <span>Sistema operativo attivo. Clicca il microfono o scrivi qui sotto.</span>
+        </div>
+      </div>
+      <div class="typing-indicator" id="typing" style="display:none;">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-section" data-label="SCRIVI AD AURA" style="flex-shrink:0;">
+    <div id="allegato-preview" style="display:none; align-items:center; gap:10px; margin-bottom:8px;
+      padding:6px; border:1px dashed var(--cyan-mid); border-radius:3px; background:rgba(0,245,255,0.04);">
+      <img id="allegato-thumb" src="" alt="Anteprima"
+        style="height:56px; max-width:90px; object-fit:cover; border-radius:3px; border:1px solid var(--cyan-dim);">
+      <span style="flex:1; font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--cyan); letter-spacing:1px;">IMMAGINE PRONTA<br><span style="color:var(--text-dim);">scrivi una domanda o premi INVIA</span></span>
+      <button onclick="rimuoviAllegato()" title="Rimuovi immagine"
+        style="background:none; border:1px solid var(--cyan-dim); color:var(--text-dim); border-radius:3px;
+        cursor:pointer; padding:2px 8px; font-size:12px;">✕</button>
+    </div>
+    <input type="file" id="file-input" accept="image/*" style="display:none;" onchange="if(this.files[0]) caricaImmagine(this.files[0]); this.value='';">
+    <div style="display:flex; gap:6px; align-items:flex-end;">
+      <textarea id="text-input" placeholder="Scrivi un messaggio... (Invio = invia, Maiusc+Invio = vai a capo)"
+        style="flex:1; height:170px; resize:none; background:rgba(0,245,255,0.05); border:1px solid var(--cyan-dim);
+        color:var(--text); padding:8px 10px; border-radius:3px; font-family:'Rajdhani',sans-serif;
+        font-size:14px; line-height:1.4; outline:none;"
+        onkeydown="if(event.key==='Enter' && !event.shiftKey) { event.preventDefault(); inviaMessaggio(); }"></textarea>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <button onclick="document.getElementById('file-input').click()" title="Allega un'immagine (puoi anche trascinarla o incollarla con Ctrl+V)"
+          style="background:rgba(0,245,255,0.05); border:1px solid var(--cyan-dim);
+          color:var(--cyan); padding:8px 12px; border-radius:3px; cursor:pointer; font-size:14px;">📎</button>
+        <button onclick="inviaMessaggio()"
+          style="background:rgba(0,245,255,0.1); border:1px solid var(--cyan-mid);
+          color:var(--cyan); padding:8px 12px; border-radius:3px; cursor:pointer;
+          font-family:'Share Tech Mono',monospace; font-size:11px;">INVIA</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel-section" data-label="VOCE">
+    <div class="metric-row">
+      <span class="metric-label">Provider</span>
+      <span class="metric-value">Edge TTS Docker</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-label">Voce</span>
+      <span class="metric-value green">Isabella Neural</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-label">Porta</span>
+      <span class="metric-value">5050</span>
+    </div>
+    <div class="mini-bars">
+      <div class="mini-bar" style="height:10px; animation-delay:0s"></div>
+      <div class="mini-bar" style="height:18px; animation-delay:0.1s"></div>
+      <div class="mini-bar" style="height:26px; animation-delay:0.2s"></div>
+      <div class="mini-bar" style="height:20px; animation-delay:0.15s"></div>
+      <div class="mini-bar" style="height:14px; animation-delay:0.25s"></div>
+      <div class="mini-bar" style="height:22px; animation-delay:0.05s"></div>
+      <div class="mini-bar" style="height:16px; animation-delay:0.3s"></div>
+      <div class="mini-bar" style="height:10px; animation-delay:0.2s"></div>
+    </div>
+  </div>
+
+  <!-- Overlay immagine grande -->
+  <div id="img-overlay" onclick="chiudiImmagineGrande()"
+    style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.92);
+    z-index:9999; cursor:pointer; align-items:center; justify-content:center;">
+    <img id="img-overlay-content" src=""
+      style="max-width:90vw; max-height:90vh; border-radius:8px;
+      border:2px solid var(--cyan-mid); box-shadow:0 0 40px rgba(0,245,255,0.3);">
+    <div style="position:absolute; top:20px; right:30px; font-family:'Share Tech Mono',monospace;
+      font-size:12px; color:var(--cyan); letter-spacing:2px;">ESC / CLICCA PER CHIUDERE</div>
+  </div>
+
+</aside>
+
+<!-- BOTTOM BAR -->
+<footer class="bottom-bar">
+  <div class="bottom-module">
+    <div class="module-label">SESSIONE ATTIVA</div>
+    <div class="module-value" id="session-time">00:00:00</div>
+    <div class="module-sub">Dashboard → LM Studio</div>
+  </div>
+  <div class="bottom-module">
+    <div class="module-label">ULTIMA IMMAGINE</div>
+    <div class="module-value">--</div>
+    <div class="module-sub">1024×1024 · RealisticVision</div>
+  </div>
+  <div class="bottom-module">
+    <div class="module-label">CONTESTO</div>
+    <div class="module-value" id="token-count">692</div>
+    <div class="module-sub">token attivi · 684 permanenti</div>
+  </div>
+  <div class="bottom-module">
+    <div class="module-label">STACK</div>
+    <div class="module-value">LOCALE</div>
+    <div class="module-sub">ComfyUI · LM Studio · Python</div>
+  </div>
+  <div class="bottom-module">
+    <div class="module-label">IDENTITÀ</div>
+    <div class="module-value" style="color: #00ff88;">ONLINE</div>
+    <div class="module-sub">Intelligenza Digitale v2.0</div>
+  </div>
+</footer>
+
+<script>
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent =
+      now.toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  const start = Date.now();
+  function updateSession() {
+    const elapsed = Math.floor((Date.now() - start) / 1000);
+    const h = String(Math.floor(elapsed / 3600)).padStart(2,'0');
+    const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2,'0');
+    const s = String(elapsed % 60).padStart(2,'0');
+    document.getElementById('session-time').textContent = `${h}:${m}:${s}`;
+  }
+  updateSession();
+  setInterval(updateSession, 1000);
+
+  // REALTIME STATS dal server ponte
+  const SERVER = 'http://127.0.0.1:8888';
+
+  async function aggiornaStato() {
+    try {
+      const res = await fetch(SERVER);
+      const data = await res.json();
+      
+      // RAM
+      document.getElementById('token-count').textContent = data.ram_usata + ' GB';
+      const ramU = parseFloat(data.ram_usata), ramT = parseFloat(data.ram_totale);
+      if (ramT > 0) {
+        document.getElementById('ram-val').textContent = ramU.toFixed(1) + ' / ' + ramT.toFixed(1) + ' GB';
+        document.getElementById('ram-bar').style.width = Math.min(100, ramU / ramT * 100) + '%';
+      }
+
+      // GPU reale (nvidia-smi); se non disponibile mostro n/d
+      const g = data.gpu;
+      if (g) {
+        document.getElementById('gpu-nome').textContent = g.nome.replace(/^NVIDIA\s+(GeForce\s+)?/i, '');
+        document.getElementById('vram-val').textContent = (g.vram_usata / 1024).toFixed(1) + ' / ' + (g.vram_totale / 1024).toFixed(1) + ' GB';
+        document.getElementById('vram-bar').style.width = Math.min(100, g.vram_usata / g.vram_totale * 100) + '%';
+        document.getElementById('gpu-uso').textContent = g.uso + '%';
+      } else {
+        document.getElementById('gpu-nome').textContent = 'n/d';
+        document.getElementById('vram-val').textContent = 'n/d';
+        document.getElementById('vram-bar').style.width = '0%';
+        document.getElementById('gpu-uso').textContent = 'n/d';
+      }
+      
+      // Stato Aura
+      const statoLabel = document.getElementById('statoLabel');
+      const micBtn = document.getElementById('micBtn');
+      const s = data.stato;
+      
+      if (s === 'ascolto') {
+        statoLabel.textContent = 'ASCOLTO...';
+        micBtn.className = 'mic-btn listening';
+        micBtn.textContent = '🔴';
+      } else if (s === 'trascrivo') {
+        statoLabel.textContent = 'TRASCRIVO...';
+        micBtn.className = 'mic-btn thinking';
+        micBtn.textContent = '📝';
+      } else if (s === 'penso') {
+        statoLabel.textContent = 'AURA PENSA...';
+        micBtn.className = 'mic-btn thinking';
+        micBtn.textContent = '🧠';
+      } else if (s === 'parlo') {
+        statoLabel.textContent = 'AURA PARLA...';
+        micBtn.className = 'mic-btn thinking';
+        micBtn.textContent = '🔊';
+      } else {
+        statoLabel.textContent = 'IN ATTESA';
+        micBtn.className = 'mic-btn';
+        micBtn.textContent = '🎤';
+      }
+
+      // Interfacce attive (microfono / webcam)
+      if (data.interfacce) applicaInterfacce(data.interfacce);
+
+      // Ultimo messaggio nella chat
+      if (data.ultimo_messaggio) {
+        document.getElementById('last-msg').textContent = data.ultimo_messaggio;
+      }
+      if (data.ultima_risposta) {
+        document.getElementById('last-reply').textContent = data.ultima_risposta.substring(0, 120) + '...';
+      }
+    } catch(e) {}
+  }
+  setInterval(aggiornaStato, 1000);
+
+  // INTERFACCE ATTIVE: stato on/off di microfono e webcam, sincronizzato col server
+  let interfacce = {microfono: true, webcam: true};
+
+  function applicaInterfacce(i) {
+    interfacce = i;
+    ['microfono', 'webcam'].forEach(nome => {
+      const on = !!i[nome];
+      const tog = document.getElementById('iface-' + nome);
+      const txt = document.getElementById('iface-' + nome + '-txt');
+      if (!tog || !txt) return;
+      tog.classList.toggle('on', on);
+      txt.textContent = on ? 'ATTIVO' : 'SPENTO';
+      txt.className = 'metric-value ' + (on ? 'green' : 'amber');
+    });
+    const micBtn = document.getElementById('micBtn');
+    if (micBtn) {
+      micBtn.classList.toggle('spento', !i.microfono);
+      micBtn.title = i.microfono ? 'Parla con Aura' : 'Microfono spento (riaccendilo da INTERFACCE ATTIVE)';
+    }
+  }
+
+  async function toggleInterfaccia(nome) {
+    const nuovo = !interfacce[nome];
+    applicaInterfacce({...interfacce, [nome]: nuovo});
+    try {
+      const res = await fetch(SERVER + '/interfaccia', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({nome: nome, attiva: nuovo})
+      });
+      applicaInterfacce(await res.json());
+    } catch(e) {
+      applicaInterfacce({...interfacce, [nome]: !nuovo});
+    }
+  }
+
+  function aggiungiMessaggio(chi, testo) {
+    const chat = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.className = `chat-msg ${chi}`;
+    div.innerHTML = `<div class="chat-who ${chi}">${chi === 'utente' ? 'TU' : chi.toUpperCase()}</div>${testo}`;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function apriImmagineGrande(src) {
+    const overlay = document.getElementById('img-overlay');
+    document.getElementById('img-overlay-content').src = src;
+    overlay.style.display = 'flex';
+  }
+
+  function chiudiImmagineGrande() {
+    document.getElementById('img-overlay').style.display = 'none';
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') chiudiImmagineGrande();
+  });
+
+  // ALLEGATI IMMAGINE: trascina, incolla (Ctrl+V) o scegli un file
+  let immagineAllegata = null; // base64 JPEG (senza prefisso data:)
+  const MAX_LATO = 1024;       // le foto grandi vengono ridotte per tenere Gemma veloce
+
+  function caricaImmagine(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scala = Math.min(1, MAX_LATO / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scala);
+        canvas.height = Math.round(img.height * scala);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';               // sfondo bianco per PNG trasparenti
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        immagineAllegata = dataUrl.split(',')[1];
+        document.getElementById('allegato-thumb').src = dataUrl;
+        document.getElementById('allegato-preview').style.display = 'flex';
+        document.getElementById('text-input').focus();
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function rimuoviAllegato() {
+    immagineAllegata = null;
+    document.getElementById('allegato-preview').style.display = 'none';
+    document.getElementById('allegato-thumb').src = '';
+  }
+
+  // Incolla con Ctrl+V
+  document.addEventListener('paste', (e) => {
+    const items = (e.clipboardData || {}).items || [];
+    for (const it of items) {
+      if (it.type.startsWith('image/')) {
+        e.preventDefault();
+        caricaImmagine(it.getAsFile());
+        return;
+      }
+    }
+  });
+
+  // Trascina e rilascia (ovunque nella pagina, cosi' il browser non apre l'immagine)
+  window.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    document.body.classList.add('trascino');
+  });
+  window.addEventListener('dragleave', (e) => {
+    if (e.target === document.documentElement || e.relatedTarget === null) document.body.classList.remove('trascino');
+  });
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    document.body.classList.remove('trascino');
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) caricaImmagine(f);
+  });
+
+  async function inviaMessaggio() {
+    const input = document.getElementById('text-input');
+    const testo = input.value.trim();
+    const immagine = immagineAllegata;
+    if (!testo && !immagine) return;
+    input.value = '';
+
+    let html = testo.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    if (immagine) {
+      const src = 'data:image/jpeg;base64,' + immagine;
+      html = `<img src="${src}" onclick="apriImmagineGrande(this.src)" title="Clicca per ingrandire"
+        style="display:block; max-width:100%; max-height:140px; border-radius:3px; margin-bottom:4px; cursor:pointer; border:1px solid var(--cyan-dim);">` + html;
+    }
+    aggiungiMessaggio('utente', html || '<i>(immagine)</i>');
+    rimuoviAllegato();
+
+    document.getElementById('typing').style.display = 'flex';
+    try {
+      await fetch(SERVER + '/messaggio', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({testo, immagine})
+      });
+    } catch(e) {
+      console.error(e);
+    }
+  }
+
+  // Aggiorna chat quando arriva nuova risposta
+  let ultimaRisposta = '';
+  async function aggiornaChat() {
+    try {
+      const res = await fetch(SERVER);
+      const data = await res.json();
+      if (data.ultima_risposta && data.ultima_risposta !== ultimaRisposta) {
+        ultimaRisposta = data.ultima_risposta;
+        document.getElementById('typing').style.display = 'none';
+        aggiungiMessaggio('aura', data.ultima_risposta);
+      }
+      // Mostra immagine generata
+      if (data.ultima_immagine) {
+        const imgPanel = document.getElementById('img-panel');
+        const img = document.getElementById('generated-img');
+        img.src = 'data:image/png;base64,' + data.ultima_immagine;
+        imgPanel.style.display = 'block';
+      }
+      if (data.stato !== 'in attesa') {
+        document.getElementById('typing').style.display = 'flex';
+      } else {
+        document.getElementById('typing').style.display = 'none';
+      }
+    } catch(e) {}
+  }
+  setInterval(aggiornaChat, 1000);
+
+  async function parlaAdAura() {
+    const micBtn = document.getElementById('micBtn');
+    const statoLabel = document.getElementById('statoLabel');
+    if (!interfacce.microfono) return;
+    if (micBtn.classList.contains('listening') || micBtn.classList.contains('thinking')) return;
+
+    statoLabel.textContent = 'AVVIO...';
+    micBtn.className = 'mic-btn listening';
+    micBtn.textContent = '🔴';
+    
+    try {
+      await fetch(SERVER + '/ascolta', { method: 'POST' });
+    } catch(e) {
+      statoLabel.textContent = 'ERRORE SERVER';
+      micBtn.className = 'mic-btn';
+      micBtn.textContent = '🎤';
+    }
+  }
+</script>
+
+</body>
+</html>
