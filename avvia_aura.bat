@@ -44,7 +44,15 @@ echo      OK - Docker attivo
 echo.
 echo [2/6] Avvio il container della voce (Edge TTS)...
 docker start %CONTAINER_TTS% >nul 2>&1
-if errorlevel 1 docker run -d --name %CONTAINER_TTS% -p 5050:5050 -e REQUIRE_API_KEY=False travisvn/openai-edge-tts:latest
+if not errorlevel 1 goto voce_ok
+echo      Creo il container della voce (prima volta)...
+docker run -d --name %CONTAINER_TTS% -p 5050:5050 -e REQUIRE_API_KEY=False travisvn/openai-edge-tts:latest
+echo      Aggiorno la libreria della voce (edge-tts): serve per evitare l'errore 403 di Microsoft...
+timeout /t 8 /nobreak >nul
+docker exec %CONTAINER_TTS% pip install --upgrade edge-tts
+if errorlevel 1 echo      ATTENZIONE: aggiornamento di edge-tts non riuscito. Se la voce da' errore 403, vedi il README.
+docker restart %CONTAINER_TTS% >nul 2>&1
+:voce_ok
 echo      OK - voce pronta
 echo.
 goto lmstudio
