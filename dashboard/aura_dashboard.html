@@ -74,6 +74,7 @@
     animation: pulse 2s ease-in-out infinite;
   }
   .status-dot.amber { background: var(--amber); }
+  .status-dot.red { background: #ff4d4d; animation: none; }
   @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.3; }
@@ -501,10 +502,10 @@
 <header class="topbar">
   <div class="top-brand">AURA_OS v2.0</div>
   <div class="top-status">
-    <span><span class="status-dot"></span>LM STUDIO ONLINE</span>
-    <span><span class="status-dot"></span>COMFYUI ONLINE</span>
-    <span><span class="status-dot amber"></span>EDGE TTS ONLINE</span>
-    <span><span class="status-dot"></span>SERVER ONLINE</span>
+    <span id="svc-lm"><span class="status-dot amber"></span><span class="svc-txt">LM STUDIO ...</span></span>
+    <span id="svc-comfy"><span class="status-dot amber"></span><span class="svc-txt">COMFYUI ...</span></span>
+    <span id="svc-tts"><span class="status-dot amber"></span><span class="svc-txt">EDGE TTS ...</span></span>
+    <span id="svc-server"><span class="status-dot amber"></span><span class="svc-txt">SERVER AURA ...</span></span>
   </div>
   <div class="top-time" id="clock">--:--:--</div>
 </header>
@@ -515,7 +516,7 @@
   <div class="panel-section" data-label="SISTEMA">
     <div class="metric-row">
       <span class="metric-label">Modello</span>
-      <span class="metric-value">LM Studio</span>
+      <span class="metric-value" id="modello-val" style="max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">n/d</span>
     </div>
     <div class="metric-row">
       <span class="metric-label">GPU</span>
@@ -590,7 +591,7 @@
   </div>
 
   <div class="panel-section" data-label="LOG">
-    <div class="log-entry ok"><span class="ts">--:--</span><span class="msg">Dashboard avviata</span></div>
+    <div id="log-list"></div>
   </div>
 
 </aside>
@@ -723,13 +724,13 @@
   </div>
   <div class="bottom-module">
     <div class="module-label">ULTIMA IMMAGINE</div>
-    <div class="module-value">--</div>
+    <div class="module-value" id="ultima-img-nome">--</div>
     <div class="module-sub">1024×1024 · RealisticVision</div>
   </div>
   <div class="bottom-module">
     <div class="module-label">CONTESTO</div>
-    <div class="module-value" id="token-count">692</div>
-    <div class="module-sub">token attivi · 684 permanenti</div>
+    <div class="module-value" id="token-count">0 / 10</div>
+    <div class="module-sub">scambi tenuti in contesto</div>
   </div>
   <div class="bottom-module">
     <div class="module-label">STACK</div>
@@ -766,13 +767,57 @@
   // REALTIME STATS dal server ponte
   const SERVER = 'http://127.0.0.1:8888';
 
+  // STATO SERVIZI e LOG: tutto reale, letto dal server (che controlla LM Studio, ComfyUI e la voce)
+  const svcPrev = {};
+  function aggiungiLog(msg, tipo) {
+    const lista = document.getElementById('log-list');
+    if (!lista) return;
+    const d = new Date(), pad = n => String(n).padStart(2, '0');
+    const riga = document.createElement('div');
+    riga.className = 'log-entry ' + tipo;
+    riga.innerHTML = '<span class="ts">' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + '</span><span class="msg"></span>';
+    riga.querySelector('.msg').textContent = msg;
+    lista.insertBefore(riga, lista.firstChild);
+    while (lista.children.length > 6) lista.removeChild(lista.lastChild);
+  }
+  function setSvc(id, nome, esito, nomeLog) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.querySelector('.status-dot').className = 'status-dot' + (esito === 'ok' ? '' : ' red');
+    el.querySelector('.svc-txt').textContent = nome + (esito === 'ok' ? ' ONLINE' : ' OFFLINE');
+    if (svcPrev[id] !== esito) {
+      svcPrev[id] = esito;
+      aggiungiLog((nomeLog || nome) + (esito === 'ok' ? ' online' : ' offline'), esito === 'ok' ? 'ok' : 'warn');
+    }
+  }
+  let immaginePrev = null;
+
   async function aggiornaStato() {
+    let risposto = false;
     try {
       const res = await fetch(SERVER);
       const data = await res.json();
+      risposto = true;
       
+      setSvc('svc-server', 'SERVER AURA', 'ok', 'Server Aura');
+      if (data.servizi) {
+        setSvc('svc-lm', 'LM STUDIO', data.servizi.lm, 'LM Studio');
+        setSvc('svc-comfy', 'COMFYUI', data.servizi.comfy, 'ComfyUI');
+        setSvc('svc-tts', 'EDGE TTS', data.servizi.tts, 'Voce (Edge TTS)');
+      }
+      if (data.modello) {
+        const m = document.getElementById('modello-val');
+        m.textContent = data.modello.replace(/-(uncensored|abliterated|instruct|it)\b.*$/i, '');
+        m.title = data.modello;
+      }
+      if (data.ultima_immagine_nome && data.ultima_immagine_nome !== immaginePrev) {
+        if (immaginePrev !== null) aggiungiLog('Immagine generata', 'ok');
+        immaginePrev = data.ultima_immagine_nome;
+        document.getElementById('ultima-img-nome').textContent = data.ultima_immagine_nome;
+      }
+
       // RAM
-      document.getElementById('token-count').textContent = data.ram_usata + ' GB';
+      document.getElementById('token-count').textContent = (data.scambi || 0) + ' / 10';
       const ramU = parseFloat(data.ram_usata), ramT = parseFloat(data.ram_totale);
       if (ramT > 0) {
         document.getElementById('ram-val').textContent = ramU.toFixed(1) + ' / ' + ramT.toFixed(1) + ' GB';
@@ -824,14 +869,26 @@
       if (data.interfacce) applicaInterfacce(data.interfacce);
 
       // Ultimo messaggio nella chat
-      if (data.ultimo_messaggio) {
+      if (data.ultimo_messaggio && document.getElementById('last-msg')) {
         document.getElementById('last-msg').textContent = data.ultimo_messaggio;
       }
-      if (data.ultima_risposta) {
+      if (data.ultima_risposta && document.getElementById('last-reply')) {
         document.getElementById('last-reply').textContent = data.ultima_risposta.substring(0, 120) + '...';
       }
-    } catch(e) {}
+    } catch(e) {
+      if (risposto) return;  // errore interno alla dashboard, il server risponde
+      setSvc('svc-server', 'SERVER AURA', 'off', 'Server Aura');
+      // senza il server non posso sapere lo stato degli altri servizi
+      ['lm:LM STUDIO', 'comfy:COMFYUI', 'tts:EDGE TTS'].forEach(x => {
+        const [k, n] = x.split(':'), el = document.getElementById('svc-' + k);
+        if (!el) return;
+        el.querySelector('.status-dot').className = 'status-dot amber';
+        el.querySelector('.svc-txt').textContent = n + ' ?';
+        delete svcPrev['svc-' + k];
+      });
+    }
   }
+  aggiungiLog('Dashboard avviata', 'ok');
   setInterval(aggiornaStato, 1000);
 
   // INTERFACCE ATTIVE: stato on/off di microfono e webcam, sincronizzato col server
@@ -868,6 +925,15 @@
     } catch(e) {
       applicaInterfacce({...interfacce, [nome]: !nuovo});
     }
+  }
+
+  // Risposte di Aura: escape dell'HTML, poi **grassetto**, *corsivo* e a capo
+  function formattaRisposta(t) {
+    return String(t)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+      .replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g, '$1<i>$2</i>')
+      .replace(/\n/g, '<br>');
   }
 
   function aggiungiMessaggio(chi, testo) {
@@ -992,7 +1058,7 @@
       if (data.ultima_risposta && data.ultima_risposta !== ultimaRisposta) {
         ultimaRisposta = data.ultima_risposta;
         document.getElementById('typing').style.display = 'none';
-        aggiungiMessaggio('aura', data.ultima_risposta);
+        aggiungiMessaggio('aura', formattaRisposta(data.ultima_risposta));
       }
       // Mostra immagine generata
       if (data.ultima_immagine) {

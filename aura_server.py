@@ -266,6 +266,7 @@ def genera_immagine(prompt_en):
                         img_url = f"{COMFYUI_URL}/view?filename={img['filename']}&subfolder={img.get('subfolder','')}&type={img.get('type','output')}"
                         img_response = requests.get(img_url)
                         img_b64 = base64.b64encode(img_response.content).decode('utf-8')
+                        stato["ultima_immagine_nome"] = img["filename"]
                         print("Immagine generata!")
                         return img_b64
         print("Timeout generazione immagine")
@@ -295,13 +296,18 @@ stato = {
     "chat": [],
     "ultima_immagine": None,
     "interfacce": {"microfono": True, "webcam": True},
-    "gpu": None
+    "gpu": None,
+    "modello": MODEL,
+    "servizi": {"lm": "off", "comfy": "off", "tts": "off"},
+    "ultima_immagine_nome": None,
+    "scambi": 0
 }
 
 def get_system_stats():
     ram = psutil.virtual_memory()
     stato["ram_usata"] = f"{ram.used / 1024**3:.1f}"
     stato["ram_totale"] = f"{ram.total / 1024**3:.1f}"
+    stato["scambi"] = len(storia) // 2
 
 def leggi_gpu():
     """Legge nome, VRAM e uso della GPU NVIDIA con nvidia-smi. Se non disponibile restituisce None."""
@@ -324,6 +330,34 @@ def aggiorna_gpu_loop():
     while True:
         stato["gpu"] = leggi_gpu()
         time.sleep(2)
+
+def _http_ok(url):
+    try:
+        return requests.get(url, timeout=2).status_code == 200
+    except Exception:
+        return False
+
+def _porta_aperta(url):
+    """True se qualcosa ascolta sull'host:porta dell'URL (usato per il container TTS)."""
+    try:
+        from urllib.parse import urlparse
+        u = urlparse(url)
+        import socket
+        with socket.create_connection((u.hostname, u.port or 80), timeout=2):
+            return True
+    except Exception:
+        return False
+
+def controlla_servizi_loop():
+    """Controlla ogni 3 secondi se LM Studio, ComfyUI e la voce (Edge TTS) rispondono davvero."""
+    lm_base = LM_STUDIO_URL.split("/v1/")[0]
+    while True:
+        stato["servizi"] = {
+            "lm": "ok" if _http_ok(lm_base + "/v1/models") else "off",
+            "comfy": "ok" if _http_ok(COMFYUI_URL + "/system_stats") else "off",
+            "tts": "ok" if _porta_aperta(TTS_URL) else "off",
+        }
+        time.sleep(3)
 
 def registra_e_trascrivi():
     stato["stato"] = "ascolto"
@@ -595,6 +629,7 @@ def avvia_web_server():
 # Avvia web server in background
 threading.Thread(target=avvia_web_server, daemon=True).start()
 threading.Thread(target=aggiorna_gpu_loop, daemon=True).start()
+threading.Thread(target=controlla_servizi_loop, daemon=True).start()
 
 print(f"Server Aura avviato su porta {PORT}")
 print("Dashboard pronta!")
