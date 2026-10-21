@@ -7,6 +7,8 @@ set "COMFYUI_DIR=C:\ComfyUI"
 set "DOCKER_EXE=C:\Program Files\Docker\Docker\Docker Desktop.exe"
 set "CONTAINER_TTS=aura-tts"
 set "PYTHON=python"
+REM Se ComfyUI usa un Python diverso (es. la versione portable: C:\ComfyUI\python_embeded\python.exe), scrivilo qui
+set "PYTHON_COMFYUI=%PYTHON%"
 REM LM Studio: percorso del programma e nome ESATTO del modello (come in "lms ls")
 set "LMSTUDIO_EXE=%LOCALAPPDATA%\Programs\LM Studio\LM Studio.exe"
 set "MODELLO=gemma-4-e4b-uncensored-hauhaucs-aggressive"
@@ -48,9 +50,15 @@ if not errorlevel 1 goto voce_ok
 echo      Creo il container della voce (prima volta)...
 docker run -d --name %CONTAINER_TTS% -p 5050:5050 -e REQUIRE_API_KEY=False travisvn/openai-edge-tts:latest
 echo      Aggiorno la libreria della voce (edge-tts): serve per evitare l'errore 403 di Microsoft...
+set /a prove=0
+:voce_pip
 timeout /t 8 /nobreak >nul
-docker exec %CONTAINER_TTS% pip install --upgrade edge-tts
-if errorlevel 1 echo      ATTENZIONE: aggiornamento di edge-tts non riuscito. Se la voce da' errore 403, vedi il README.
+docker exec %CONTAINER_TTS% pip install --upgrade edge-tts >nul 2>&1
+if not errorlevel 1 goto voce_pip_ok
+set /a prove+=1
+if %prove% lss 3 goto voce_pip
+echo      ATTENZIONE: aggiornamento di edge-tts non riuscito. Se la voce da' errore 403, vedi il README.
+:voce_pip_ok
 docker restart %CONTAINER_TTS% >nul 2>&1
 :voce_ok
 echo      OK - voce pronta
@@ -114,7 +122,7 @@ echo.
 :avanti
 echo [4/6] Avvio ComfyUI...
 if not exist "%COMFYUI_DIR%\main.py" goto comfy_ko
-start "ComfyUI" /d "%COMFYUI_DIR%" cmd /k "%PYTHON% main.py"
+start "ComfyUI" /d "%COMFYUI_DIR%" cmd /k ""%PYTHON_COMFYUI%" main.py"
 echo      OK - ComfyUI avviato su porta 8188
 goto comfy_fine
 :comfy_ko
@@ -125,7 +133,7 @@ echo.
 timeout /t 3 /nobreak > nul
 
 echo [5/6] Avvio il server di Aura...
-start "Aura Server" cmd /k "%PYTHON% aura_server.py"
+start "Aura Server" cmd /k ""%PYTHON%" aura_server.py"
 echo      OK - server su porta 8888, dashboard su porta 8000
 echo.
 

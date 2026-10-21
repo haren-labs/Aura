@@ -46,7 +46,7 @@ Hardware di riferimento: RTX 3050 8 GB e 16 GB di RAM reggono tutto, ma con marg
    ```
    Per usare la GPU con Whisper serve PyTorch con CUDA: segui le istruzioni su [pytorch.org](https://pytorch.org).
 3. Apri `aura_server.py` e modifica la sezione **CONFIGURAZIONE** in alto: almeno `NOME_UTENTE`, e se vuoi `GENERE_UTENTE` e `PROFILO_UTENTE`.
-4. Apri `avvia_aura.bat` con un editor di testo e correggi in alto `COMFYUI_DIR`, e se servono `DOCKER_EXE`, `LMSTUDIO_EXE` e `MODELLO` (il nome esatto del modello, lo vedi con `lms ls`).
+4. Apri `avvia_aura.bat` con un editor di testo e correggi in alto `COMFYUI_DIR`, e se servono `DOCKER_EXE`, `LMSTUDIO_EXE`, `PYTHON_COMFYUI` (solo se ComfyUI usa un Python diverso da quello di Aura) e `MODELLO` (il nome esatto del modello, lo vedi con `lms ls`).
 5. Il nome del modello deve coincidere con `MODEL` in `aura_server.py`. Se preferisci l'avvio manuale, in LM Studio carica il modello e **avvia il server locale** (porta 1234).
 6. (Facoltativo) Esegui `crea_collegamento_aura.bat` per avere un'icona "Aura" sul Desktop.
 
@@ -60,7 +60,7 @@ Fai doppio clic su `avvia_aura.bat`. Lo script:
 4. avvia ComfyUI e il server di Aura;
 5. apre la dashboard su `http://127.0.0.1:8000/aura_dashboard.html`.
 
-Quindi **Aura si avvia con un solo comando**. Provato sul mio PC (Windows 11); su altri sistemi potresti dover correggere i percorsi in cima al `.bat`. Se il comando `lms` non è disponibile, il resto parte comunque e LM Studio va avviato a mano.
+Quindi **Aura si avvia con un solo comando**. La mia versione personale di questo script funziona sul mio PC (Windows 11); la versione condivisa qui è la stessa logica con i percorsi configurabili, ma **non l'ho ancora provata su un'installazione pulita**: potresti dover correggere i percorsi in cima al `.bat`. Se il comando `lms` non è disponibile, il resto parte comunque e LM Studio va avviato a mano.
 
 Per avviare solo il server: `python aura_server.py`.
 
@@ -152,7 +152,7 @@ Aura gira su un modello piccolo (pochi miliardi di parametri) e su una scheda da
 
 - Funziona solo su Windows (per ora).
 - Un modello da pochi miliardi di parametri a volte sbaglia colori, dettagli piccoli o attribuzioni ("chi ha detto cosa"), nonostante le regole nel prompt.
-- RAM, VRAM e uso della GPU nella dashboard sono reali, ma i dati della GPU si leggono con `nvidia-smi`: funzionano solo con schede NVIDIA (altrimenti compare "n/d"). Alcuni altri riquadri della dashboard (ad esempio il contatore "contesto") sono solo decorativi.
+- Nella dashboard sono dati reali: RAM, VRAM e uso della GPU (letti con `nvidia-smi`, quindi solo schede NVIDIA, altrimenti compare "n/d"), lo stato di LM Studio, ComfyUI, voce e server, il nome del modello, il LOG degli eventi, il nome dell'ultima immagine generata e il numero di scambi nel contesto. I riquadri "Immagini" (motore, checkpoint, sampler, steps, hires fix) e "Voce" sono testi fissi che descrivono la configurazione di default: se la cambi nel codice, vanno aggiornati a mano nel file `dashboard/aura_dashboard.html`.
 - Non c'è un installer: la configurazione è manuale.
 
 ## Struttura
