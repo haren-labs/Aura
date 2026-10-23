@@ -1,5 +1,35 @@
 # Aura
 
+🇬🇧 [English summary](#english-summary) · 🇪🇸 [Resumen en español](#resumen-en-español)
+
+## English summary
+
+Aura is a personal AI assistant that runs **entirely on your own PC**: it talks with a natural voice, listens, sees through the webcam, describes the images you show it, generates new images and remembers past conversations. The "brain" is a local model in LM Studio, so your conversations never go through an external AI service.
+
+The idea behind the project: a local assistant with voice, vision and memory **doesn't need a gaming or workstation PC**. Aura runs on an RTX 3050 (8 GB VRAM) with 16 GB of RAM.
+
+- Stack: Python, LM Studio (vision model, tested with Gemma 4), Whisper, Edge TTS (Docker), ComfyUI, DuckDuckGo search, browser dashboard.
+- Windows 11 only for now.
+- The interface, the voice and the documentation below are in Italian.
+- Shared as is: it works, but it's not a polished product.
+
+Issues and feedback are welcome in English, Spanish or Italian.
+
+## Resumen en español
+
+Aura es una asistente de IA personal que funciona **completamente en tu PC**: habla con voz natural, escucha, ve a través de la webcam, describe las imágenes que le muestras, genera imágenes nuevas y recuerda las conversaciones anteriores. El "cerebro" es un modelo local en LM Studio, así que tus conversaciones no pasan por ningún servicio de IA externo.
+
+La idea del proyecto: una asistente local con voz, visión y memoria **no necesita un PC gaming ni profesional**. Aura funciona con una RTX 3050 (8 GB de VRAM) y 16 GB de RAM.
+
+- Tecnologías: Python, LM Studio (modelo con visión, probado con Gemma 4), Whisper, Edge TTS (Docker), ComfyUI, búsqueda con DuckDuckGo, panel en el navegador.
+- Por ahora solo Windows 11.
+- La interfaz, la voz y la documentación de abajo están en italiano.
+- Se comparte tal cual: funciona, pero no es un producto pulido.
+
+Comentarios e issues bienvenidos en español, inglés o italiano.
+
+---
+
 **Aura** è un'assistente AI personale che gira **interamente sul tuo PC**: parla con voce naturale, ti ascolta, vede attraverso la webcam, riconosce le immagini che le mostri, genera immagini e ricorda le conversazioni passate. Il "cervello" è un modello locale in LM Studio, quindi le tue conversazioni non passano da un servizio AI esterno.
 
 È un progetto personale nato su hardware modesto (RTX 3050 8 GB, 16 GB di RAM) e condiviso **così com'è**: funziona, ma non è un prodotto rifinito. Se vuoi usarlo, aspettati di dover aggiustare qualcosa.
