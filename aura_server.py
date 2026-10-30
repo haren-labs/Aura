@@ -15,6 +15,7 @@ COMFYUI_URL = "http://127.0.0.1:8188"
 COMFY_CHECKPOINT = "realisticVisionV60B1_v51HyperVAE.safetensors"  # file in ComfyUI/models/checkpoints
 PORT = 8888                 # API del server
 PORT_DASHBOARD = 8000       # dashboard nel browser
+HOST = "127.0.0.1"          # "127.0.0.1" = solo questo PC; "0.0.0.0" = anche altri dispositivi della rete (vedi README)
 
 FFMPEG = "ffmpeg"           # oppure il percorso completo a ffmpeg.exe
 FFMPEG_DIR = ""             # facoltativo: cartella di ffmpeg da aggiungere al PATH (es. r"C:\ffmpeg\bin")
@@ -55,7 +56,13 @@ import uuid
 import base64
 import cv2
 from datetime import datetime
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from fastapi import FastAPI, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+import tempfile
+import uvicorn
 try:
     from ddgs import DDGS
 except ImportError:  # vecchio nome del pacchetto
@@ -518,119 +525,263 @@ def parla(testo):
                     pass
     stato["stato"] = "in attesa"
 
-class Handler(BaseHTTPRequestHandler):
-    def log_message(self, format, *args):
-        pass
+# ======================= SERVER FASTAPI =======================
+# Il server "API" (porta 8888) riceve le richieste della dashboard.
+# Il server "dashboard" (porta 8000) mostra solo i file della pagina.
 
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.end_headers()
+app = FastAPI(title="Aura API", description="Il server di Aura: stato, messaggi, voce e interfacce.")
 
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.end_headers()
-        get_system_stats()
-        risposta_stato = dict(stato)
-        self.wfile.write(json.dumps(risposta_stato).encode())
+# Permette alla dashboard (porta 8000) di parlare con l'API (porta 8888)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
+)
 
-    def do_POST(self):
-        content_length = int(self.headers.get('Content-Length', 0))
-        body = self.rfile.read(content_length) if content_length > 0 else b''
+# Com'e' fatta ogni richiesta: FastAPI controlla i dati e li mostra in /docs
+class Interfaccia(BaseModel):
+    nome: str       # "microfono" oppure "webcam"
+    attiva: bool    # True = accesa, False = spenta
 
-        if self.path == '/interfaccia':
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
+class Messaggio(BaseModel):
+    testo: str = ""
+    immagine: str | None = None   # immagine in base64, facoltativa
+
+class Chat(BaseModel):
+    testo: str
+    immagine: str | None = None   # immagine in base64, facoltativa
+    voce: bool = False            # True = Aura risponde anche a voce dalle casse del PC
+
+class Immagine(BaseModel):
+    prompt: str   # descrizione in INGLESE, a parole chiave (es. "a cat on a roof, sunset, close-up")
+
+class Visione(BaseModel):
+    domanda: str = "Cosa vedi? Descrivilo."
+    immagine: str | None = None   # se manca, Aura scatta una foto con la webcam
+    voce: bool = False            # True = Aura risponde anche a voce dalle casse del PC
+
+class Voce(BaseModel):
+    testo: str
+    riproduci: bool = False   # True = lo dice anche dalle casse del PC
+
+class Ricerca(BaseModel):
+    query: str
+    max_risultati: int = 5
+
+# Aura pensa una cosa alla volta: se arrivano due domande insieme
+# (dashboard e telefono), la seconda aspetta che finisca la prima
+lucchetto_aura = threading.Lock()
+
+# Whisper trascrive un audio alla volta
+lucchetto_whisper = threading.Lock()
+
+# La scheda video genera un'immagine alla volta
+lucchetto_immagini = threading.Lock()
+
+def chiedi_in_sicurezza(testo, immagine=None):
+    with lucchetto_aura:
+        return chiedi_ad_aura(testo, immagine)
+
+def in_background(funzione, *argomenti):
+    """Esegue un lavoro lungo (pensare, parlare) senza far aspettare la dashboard."""
+    def lavoro():
+        try:
+            funzione(*argomenti)
+        except Exception as e:
+            import traceback
+            print(f"ERRORE: {e}")
+            print(traceback.format_exc())
+            stato["stato"] = "in attesa"
+    threading.Thread(target=lavoro, daemon=True).start()
+
+def ascolta_e_rispondi():
+    testo = registra_e_trascrivi()
+    if testo:
+        risposta = chiedi_in_sicurezza(testo)
+        parla(risposta)
+
+def rispondi_al_messaggio(testo, immagine):
+    if immagine and not testo:
+        testo = "Cosa vedi in questa immagine? Descrivila."
+    if testo:
+        stato["stato"] = "penso"
+        risposta = chiedi_in_sicurezza(testo, immagine)
+        parla(risposta)
+
+@app.get("/")
+def leggi_stato():
+    """Stato completo di Aura: la dashboard lo chiede ogni secondo."""
+    get_system_stats()
+    return dict(stato)
+
+@app.post("/interfaccia")
+def cambia_interfaccia(richiesta: Interfaccia):
+    """Accende o spegne microfono e webcam."""
+    if richiesta.nome in stato["interfacce"]:
+        stato["interfacce"][richiesta.nome] = richiesta.attiva
+        print(f"Interfaccia {richiesta.nome}: {'ATTIVA' if richiesta.attiva else 'SPENTA'}")
+    return stato["interfacce"]
+
+@app.post("/ascolta")
+def ascolta():
+    """Registra dal microfono, trascrive, risponde e parla."""
+    if not stato["interfacce"]["microfono"]:
+        return {"ok": False, "motivo": "microfono spento"}
+    in_background(ascolta_e_rispondi)
+    return {"ok": True}
+
+@app.post("/messaggio")
+def messaggio(richiesta: Messaggio):
+    """Riceve un messaggio scritto (con immagine facoltativa), risponde e parla."""
+    in_background(rispondi_al_messaggio, richiesta.testo.strip(), richiesta.immagine or None)
+    return {"ok": True}
+
+@app.post("/chat")
+def chat(richiesta: Chat):
+    """Fa una domanda ad Aura e restituisce subito la risposta come testo.
+    Se Aura genera un'immagine, la restituisce in base64 nel campo "immagine"."""
+    testo = richiesta.testo.strip()
+    if not testo:
+        return {"ok": False, "motivo": "messaggio vuoto"}
+    immagine_prima = stato["ultima_immagine"]
+    risposta = chiedi_in_sicurezza(testo, richiesta.immagine or None)
+    immagine_nuova = None
+    if stato["ultima_immagine"] is not immagine_prima:   # Aura ha appena creato un'immagine
+        immagine_nuova = stato["ultima_immagine"]
+    if richiesta.voce:
+        in_background(parla, risposta)
+    else:
+        stato["stato"] = "in attesa"
+    return {"ok": True, "risposta": risposta, "immagine": immagine_nuova}
+
+@app.post("/image")
+def image(richiesta: Immagine):
+    """Genera un'immagine con ComfyUI (con hires fix) e la restituisce in base64.
+    L'immagine compare anche nella dashboard."""
+    prompt = richiesta.prompt.strip()
+    if not prompt:
+        return {"ok": False, "motivo": "prompt vuoto"}
+    with lucchetto_immagini:
+        img_b64 = genera_immagine(prompt)
+    stato["stato"] = "in attesa"
+    if not img_b64:
+        return {"ok": False, "motivo": "ComfyUI non ha generato l'immagine (e' acceso?)"}
+    stato["ultima_immagine"] = img_b64
+    return {"ok": True, "immagine": img_b64, "nome_file": stato["ultima_immagine_nome"]}
+
+@app.post("/vision")
+def vision(richiesta: Visione):
+    """Aura guarda un'immagine (o scatta una foto con la webcam) e risponde alla domanda.
+    Se la foto e' della webcam, la restituisce in base64 nel campo "foto"."""
+    domanda = richiesta.domanda.strip() or "Cosa vedi? Descrivilo."
+    foto = None
+    immagine = richiesta.immagine or None
+    if not immagine:
+        if not stato["interfacce"]["webcam"]:
+            return {"ok": False, "motivo": "webcam spenta dalla dashboard"}
+        stato["stato"] = "guardo"
+        foto = cattura_webcam()
+        if not foto:
+            stato["stato"] = "in attesa"
+            return {"ok": False, "motivo": "webcam non disponibile"}
+        immagine = foto
+    risposta = chiedi_in_sicurezza(domanda, immagine)
+    if richiesta.voce:
+        in_background(parla, risposta)
+    else:
+        stato["stato"] = "in attesa"
+    return {"ok": True, "risposta": risposta, "foto": foto}
+
+def voce_mp3(testo):
+    """Trasforma il testo in voce (TTS_VOICE) e restituisce l'audio MP3 (bytes), o None."""
+    audio = b""
+    for i, parte in enumerate(dividi_testo(testo)):
+        for tentativo in range(1, 4):
             try:
-                data = json.loads(body.decode('utf-8'))
-                nome = data.get('nome')
-                if nome in stato["interfacce"]:
-                    stato["interfacce"][nome] = bool(data.get('attiva'))
-                    print(f"Interfaccia {nome}: {'ATTIVA' if stato['interfacce'][nome] else 'SPENTA'}")
+                r = requests.post(TTS_URL, headers={"Authorization": f"Bearer {TTS_API_KEY}"}, json={
+                    "model": "tts-1", "input": parte, "voice": TTS_VOICE
+                }, timeout=120)
+                if r.status_code == 200:
+                    audio += r.content
+                    break
+                print(f"ERRORE TTS /speak (parte {i + 1}, tentativo {tentativo}/3): stato {r.status_code}")
             except Exception as e:
-                print(f"Errore interfaccia: {e}")
-            self.wfile.write(json.dumps(stato["interfacce"]).encode())
+                print(f"ERRORE TTS /speak (parte {i + 1}, tentativo {tentativo}/3): {e}")
+            time.sleep(1.5)
+        else:
+            return None   # una parte non e' riuscita dopo 3 tentativi
+    return audio or None
 
-        elif self.path == '/ascolta' and not stato["interfacce"]["microfono"]:
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            self.wfile.write(json.dumps({"ok": False, "motivo": "microfono spento"}).encode())
+@app.post("/transcribe")
+def transcribe(audio: UploadFile = File(...)):
+    """Riceve un file audio (mp3, wav, ogg, webm, m4a...) e lo trascrive in testo con Whisper."""
+    estensione = os.path.splitext(audio.filename or "")[1] or ".wav"
+    contenuto = audio.file.read()
+    if not contenuto:
+        return {"ok": False, "motivo": "file audio vuoto"}
+    percorso = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=estensione, dir=CARTELLA_TEMP) as f:
+            f.write(contenuto)
+            percorso = f.name
+        with lucchetto_whisper:
+            risultato = whisper_model.transcribe(percorso, language='it')
+        return {"ok": True, "testo": risultato['text'].strip()}
+    except Exception as e:
+        print(f"ERRORE /transcribe: {e}")
+        return {"ok": False, "motivo": f"trascrizione non riuscita: {e}"}
+    finally:
+        if percorso and os.path.exists(percorso):
+            os.remove(percorso)
 
-        elif self.path == '/ascolta':
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
+@app.post("/speak", responses={200: {"content": {"audio/mpeg": {}}}})
+def speak(richiesta: Voce):
+    """Trasforma il testo in voce (TTS_VOICE) e restituisce un file MP3."""
+    testo = richiesta.testo.strip()
+    if not testo:
+        return {"ok": False, "motivo": "testo vuoto"}
+    audio = voce_mp3(testo)
+    if not audio:
+        return {"ok": False, "motivo": "il servizio voce non risponde (Docker e' acceso?)"}
+    if richiesta.riproduci:
+        in_background(parla, testo)
+    return Response(content=audio, media_type="audio/mpeg",
+                    headers={"Content-Disposition": 'inline; filename="aura.mp3"'})
 
-            def processo():
-                try:
-                    testo = registra_e_trascrivi()
-                    if testo:
-                        risposta = chiedi_ad_aura(testo)
-                        parla(risposta)
-                except Exception as e:
-                    import traceback
-                    print(f"ERRORE: {e}")
-                    print(traceback.format_exc())
-                    stato["stato"] = "in attesa"
+def risultati_web(query, quanti):
+    """Cerca su DuckDuckGo e restituisce una lista ordinata di risultati."""
+    with DDGS() as ddgs:
+        trovati = list(ddgs.text(query, max_results=quanti))
+    return [{"titolo": r.get("title", ""), "testo": r.get("body", ""), "link": r.get("href", "")}
+            for r in trovati]
 
-            threading.Thread(target=processo).start()
-            self.wfile.write(json.dumps({"ok": True}).encode())
+@app.post("/search")
+def search(richiesta: Ricerca):
+    """Cerca sul web (DuckDuckGo) e restituisce i risultati, senza passare da Aura."""
+    query = richiesta.query.strip()
+    if not query:
+        return {"ok": False, "motivo": "ricerca vuota"}
+    try:
+        return {"ok": True, "risultati": risultati_web(query, max(1, min(richiesta.max_risultati, 10)))}
+    except Exception as e:
+        print(f"ERRORE /search: {e}")
+        return {"ok": False, "motivo": f"ricerca non riuscita: {e}"}
 
-        elif self.path == '/messaggio':
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
+# Server della dashboard: serve i file della cartella "dashboard"
+dashboard = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+dashboard.mount("/", StaticFiles(directory=CARTELLA_DASHBOARD, html=True), name="dashboard")
 
-            def processo_testo():
-                try:
-                    data = json.loads(body.decode('utf-8'))
-                    testo = data.get('testo', '').strip()
-                    immagine = data.get('immagine') or None
-                    if immagine and not testo:
-                        testo = "Cosa vedi in questa immagine? Descrivila."
-                    if testo:
-                        stato["stato"] = "penso"
-                        risposta = chiedi_ad_aura(testo, immagine)
-                        parla(risposta)
-                except Exception as e:
-                    import traceback
-                    print(f"ERRORE: {e}")
-                    print(traceback.format_exc())
-                    stato["stato"] = "in attesa"
+def avvia_dashboard():
+    uvicorn.run(dashboard, host=HOST, port=PORT_DASHBOARD, log_level="warning")
 
-            threading.Thread(target=processo_testo).start()
-            self.wfile.write(json.dumps({"ok": True}).encode())
-
-def avvia_web_server():
-    """Serve i file statici della dashboard."""
-    import http.server
-    DASHBOARD_DIR = CARTELLA_DASHBOARD
-
-    class DashboardHandler(http.server.SimpleHTTPRequestHandler):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, directory=DASHBOARD_DIR, **kwargs)
-        def log_message(self, format, *args):
-            pass
-
-    web = HTTPServer(('', PORT_DASHBOARD), DashboardHandler)
-    print(f"Dashboard su http://127.0.0.1:{PORT_DASHBOARD}/aura_dashboard.html")
-    web.serve_forever()
-
-# Avvia web server in background
-threading.Thread(target=avvia_web_server, daemon=True).start()
+# Avvio: dashboard, GPU e controllo servizi in background, poi l'API
+threading.Thread(target=avvia_dashboard, daemon=True).start()
 threading.Thread(target=aggiorna_gpu_loop, daemon=True).start()
 threading.Thread(target=controlla_servizi_loop, daemon=True).start()
 
-print(f"Server Aura avviato su porta {PORT}")
+print(f"Dashboard su porta {PORT_DASHBOARD}, API su porta {PORT}")
+print(f"Pagina di prova degli endpoint: http://127.0.0.1:{PORT}/docs")
+print(f"Dashboard: http://127.0.0.1:{PORT_DASHBOARD}/aura_dashboard.html")
 print("Dashboard pronta!")
-HTTPServer(('', PORT), Handler).serve_forever()
+uvicorn.run(app, host=HOST, port=PORT, log_level="warning")

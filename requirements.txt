@@ -5,3 +5,6 @@ psutil
 opencv-python
 ddgs
 openai-whisper
+fastapi
+uvicorn
+python-multipart

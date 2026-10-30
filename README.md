@@ -8,7 +8,8 @@ Aura is a personal AI assistant that runs **entirely on your own PC**: it talks 
 
 The idea behind the project: a local assistant with voice, vision and memory **doesn't need a gaming or workstation PC**. Aura runs on an RTX 3050 (8 GB VRAM) with 16 GB of RAM.
 
-- Stack: Python, LM Studio (vision model, tested with Gemma 4), Whisper, Edge TTS (Docker), ComfyUI, DuckDuckGo search, browser dashboard.
+- Stack: Python, FastAPI, LM Studio (vision model, tested with Gemma 4), Whisper, Edge TTS (Docker), ComfyUI, DuckDuckGo search, browser dashboard.
+- REST API with interactive docs at `/docs`: chat, image generation, vision, speech-to-text, text-to-speech, web search.
 - Windows 11 only for now.
 - The interface, the voice and the documentation below are in Italian.
 - Shared as is: it works, but it's not a polished product.
@@ -21,7 +22,8 @@ Aura es una asistente de IA personal que funciona **completamente en tu PC**: ha
 
 La idea del proyecto: una asistente local con voz, visión y memoria **no necesita un PC gaming ni profesional**. Aura funciona con una RTX 3050 (8 GB de VRAM) y 16 GB de RAM.
 
-- Tecnologías: Python, LM Studio (modelo con visión, probado con Gemma 4), Whisper, Edge TTS (Docker), ComfyUI, búsqueda con DuckDuckGo, panel en el navegador.
+- Tecnologías: Python, FastAPI, LM Studio (modelo con visión, probado con Gemma 4), Whisper, Edge TTS (Docker), ComfyUI, búsqueda con DuckDuckGo, panel en el navegador.
+- API REST con documentación interactiva en `/docs`: chat, generación de imágenes, visión, voz a texto, texto a voz, búsqueda web.
 - Por ahora solo Windows 11.
 - La interfaz, la voz y la documentación de abajo están en italiano.
 - Se comparte tal cual: funciona, pero no es un producto pulido.
@@ -51,6 +53,7 @@ Tutto resta sul tuo computer: niente abbonamenti, niente conversazioni mandate a
 - **Ricerca sul web** (DuckDuckGo) per notizie e informazioni recenti.
 - **Memoria tra le sessioni** in un file locale (`aura_memoria.json`, mai pubblicato).
 - **Dashboard** nel browser, con interruttori per microfono e webcam.
+- **API con FastAPI**: ogni funzione ha il suo indirizzo (chat, immagini, visione, voce, ricerca), documentato e provabile dalla pagina `/docs`. Così altri programmi possono usare Aura, non solo la dashboard.
 
 ## Requisiti
 
@@ -92,7 +95,7 @@ Fai doppio clic su `avvia_aura.bat`. Lo script:
 
 Quindi **Aura si avvia con un solo comando**. La mia versione personale di questo script funziona sul mio PC (Windows 11); la versione condivisa qui è la stessa logica con i percorsi configurabili, ma **non l'ho ancora provata su un'installazione pulita**: potresti dover correggere i percorsi in cima al `.bat`. Se il comando `lms` non è disponibile, il resto parte comunque e LM Studio va avviato a mano.
 
-Per avviare solo il server: `python aura_server.py`.
+Per avviare solo il server: `python aura_server.py`. Con il server acceso, la pagina `http://127.0.0.1:8888/docs` elenca tutte le API e permette di provarle dal browser.
 
 ## Uso
 
@@ -112,6 +115,29 @@ python -c "import sounddevice as sd; print(sd.query_devices())"
 ```
 
 Poi imposta `DEVICE_INDEX` con il numero del microfono. Con `None` usa quello predefinito di Windows.
+
+## API
+
+Il server usa [FastAPI](https://fastapi.tiangolo.com). Con Aura accesa apri **`http://127.0.0.1:8888/docs`**: trovi l'elenco degli indirizzi, cosa accettano e un pulsante "Try it out" per provarli.
+
+| Indirizzo | Cosa fa |
+|---|---|
+| `GET /` | Stato completo (servizi, RAM/GPU, chat, ultima immagine): la dashboard lo legge ogni secondo |
+| `POST /chat` | Domanda ad Aura, risposta come testo (`{"testo": "..."}`; `"voce": true` per farla parlare anche dal PC) |
+| `POST /image` | Genera un'immagine con ComfyUI e la restituisce in base64 (`{"prompt": "..."}`, in inglese a parole chiave) |
+| `POST /vision` | Aura guarda la webcam (o un'immagine inviata) e risponde (`{"domanda": "..."}`) |
+| `POST /transcribe` | Riceve un file audio (mp3, wav, ogg, webm...) e lo trascrive con Whisper |
+| `POST /speak` | Trasforma un testo in voce e restituisce un file MP3 |
+| `POST /search` | Ricerca web, risultati con titolo, testo e link |
+| `POST /messaggio`, `POST /ascolta`, `POST /interfaccia` | Usati dalla dashboard: messaggio scritto, microfono, interruttori |
+
+Esempio da un CMD di Windows:
+
+```
+curl -X POST http://127.0.0.1:8888/chat -H "Content-Type: application/json" -d "{\"testo\": \"Ciao Aura\"}"
+```
+
+Per default il server ascolta solo su questo PC (`HOST = "127.0.0.1"`). Se vuoi raggiungerlo da altri dispositivi della tua rete metti `HOST = "0.0.0.0"`, sapendo che **le API non hanno password**: chiunque sia sulla stessa rete può usarle.
 
 ## Personalizzare Aura
 
@@ -134,6 +160,7 @@ La personalità è nel prompt `_PROMPT_BASE` di `aura_server.py`. Per dirle qual
 | La voce non parla e nella finestra del server compare `ERRORE TTS ... 403 Invalid response status` | Il servizio vocale di Microsoft ha cambiato il controllo sulle richieste (metà ottobre 2026) e la libreria `edge-tts` nel container è troppo vecchia: l'immagine Docker `travisvn/openai-edge-tts:latest` non è ancora stata aggiornata. Soluzione: `docker exec aura-tts pip install --upgrade edge-tts` (serve la versione 7.3.0 o superiore), poi `docker restart aura-tts`. Se hai cambiato il nome del container usa il tuo. Il `.bat` lo fa da solo quando crea il container la prima volta. L'aggiornamento resta nel container finché non lo ricrei. Più sotto ("Cosa ho imparato") c'è come l'ho scoperto. |
 | `avvia_aura.bat` dice che il comando `lms` non è disponibile o LM Studio non parte | Il comando `lms` viene installato insieme a LM Studio: prova ad aprire LM Studio una volta e poi a digitare `lms --help` in un nuovo CMD. In alternativa avvia LM Studio a mano. Controlla anche `LMSTUDIO_EXE` e `MODELLO` in cima al `.bat`. |
 | `avvia_aura.bat` dice che Docker Desktop non è stato trovato | Docker è installato in una cartella diversa da quella standard. Con Docker Desktop aperto, esegui `powershell -command "(Get-Process 'Docker Desktop').Path"`: compaiono più righe, e quella da usare è la **principale** (quella che *non* contiene `\frontend\`). Copiala in `DOCKER_EXE` all'inizio del `.bat`. |
+| All'avvio compare `[Errno 10048]` sulla porta 8888 o 8000 | Le porte sono già occupate da un altro server di Aura rimasto acceso. Chiudi il CMD "Aura Server" vecchio (o trova il processo con `netstat -ano \| findstr :8888`) e riavvia. |
 | Niente immagini | Verifica che ComfyUI sia avviato (porta 8188) e che `COMFY_CHECKPOINT` esista in `models/checkpoints`. |
 | Webcam non disponibile | Prova un altro `WEBCAM_INDEX` (0, 1, 2...) e chiudi le altre app che la usano. |
 | Aura inventa dettagli | Succede con i modelli piccoli. Vedi "Personalizzare Aura" e controlla `aura_memoria.json`. |
@@ -174,6 +201,8 @@ Aura gira su un modello piccolo (pochi miliardi di parametri) e su una scheda da
 
 - **La voce online va protetta dagli errori passeggeri.** Il servizio Edge TTS ogni tanto risponde 403/500. Riprovare fino a 3 volte e, se una parte fallisce, saltarla senza bloccare le successive evita le risposte lette a metà.
 - **Dipendere da un servizio online significa che un giorno si rompe.** A metà ottobre 2026 Microsoft ha cambiato il controllo sul servizio vocale e la voce di Aura ha smesso di funzionare da un momento all'altro, senza che avessi toccato niente. La causa non era nel mio codice né in Docker, ma nella libreria `edge-tts` dentro il container: l'ho trovata cercando l'errore esatto (`403 Invalid response status`) tra le segnalazioni del progetto, e si è risolta aggiornando la libreria. Morale: quando una cosa che funzionava si rompe, controlla anche se è rotta per tutti prima di cambiare la tua configurazione.
+- **Cambiare il "motore" senza toccare la carrozzeria.** Il primo server usava `http.server` della libreria standard, con un'unica funzione piena di `if` per ogni indirizzo. Passando a FastAPI ho tenuto identici indirizzi e porte usati dalla dashboard, così l'interfaccia ha continuato a funzionare senza modifiche, e ho aggiunto un endpoint alla volta (`/chat`, `/image`, `/vision`, `/transcribe`, `/speak`, `/search`), provandolo subito dalla pagina `/docs` prima di passare al successivo. Le API separate servono a usare Aura anche da altro (un bot, un'app sul telefono), non solo dalla dashboard.
+- **Una libreria rinominata può fallire in silenzio.** La ricerca web restituiva liste vuote senza errori: il pacchetto `duckduckgo_search` è stato rinominato in `ddgs` e la versione vecchia non trova più risultati. Un endpoint dedicato (`/search`) che mostra i risultati "grezzi" l'ha reso evidente in un minuto.
 - **Controlla quale Python usi.** Su Windows `python` e `py -3.12` possono puntare a installazioni diverse: i pacchetti risultano "mancanti" pur essendo installati. Provare con il percorso completo dell'interprete lo chiarisce subito.
 - **Quando l'audio non parte, controlla Windows prima del codice.** Volume, uscita predefinita e Mixer volume hanno causato più problemi del software. Un semplice `winsound.Beep` dice in un secondo se il problema è lì.
 - **8 GB di VRAM sono il minimo, non il comfort.** Modello linguistico, riconoscimento vocale e generazione immagini si contendono la memoria: funziona, ma conviene non avviare tutto insieme su macchine più piccole.
@@ -188,7 +217,7 @@ Aura gira su un modello piccolo (pochi miliardi di parametri) e su una scheda da
 ## Struttura
 
 ```
-aura_server.py          server: voce, ascolto, LM Studio, immagini, memoria, ricerca web
+aura_server.py          server FastAPI: API, voce, ascolto, LM Studio, immagini, memoria, ricerca web
 dashboard/              interfaccia web
 avvia_aura.bat          avvio di tutto (Docker, LM Studio, ComfyUI, server, dashboard)
 crea_collegamento_aura.bat   collegamento sul Desktop con l'icona
