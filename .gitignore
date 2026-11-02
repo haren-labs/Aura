@@ -1,4 +1,6 @@
 # Dati personali: NON vanno mai pubblicati
+config_locale.py
+prompt_personale.py
 aura_telegram_config.json
 aura_memoria.json
 aura_memoria.json.bak
