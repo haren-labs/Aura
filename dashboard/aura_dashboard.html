@@ -192,6 +192,7 @@
   .log-entry .ts { color: var(--cyan); margin-right: 6px; }
   .log-entry.ok .msg { color: #00ff88; }
   .log-entry.warn .msg { color: var(--amber); }
+  .log-entry.info .msg { color: var(--cyan); opacity: .75; }
 
   /* CENTER — AURA */
   .center {
@@ -783,14 +784,20 @@
   function setSvc(id, nome, esito, nomeLog) {
     const el = document.getElementById(id);
     if (!el) return;
-    el.querySelector('.status-dot').className = 'status-dot' + (esito === 'ok' ? '' : ' red');
-    el.querySelector('.svc-txt').textContent = nome + (esito === 'ok' ? ' ONLINE' : ' OFFLINE');
+    // esito: "ok" = online, "avvio" = sta ancora partendo, altro = offline
+    const avvio = esito === 'avvio';
+    el.querySelector('.status-dot').className = 'status-dot' + (esito === 'ok' ? '' : (avvio ? ' amber' : ' red'));
+    el.querySelector('.svc-txt').textContent = nome + (esito === 'ok' ? ' ONLINE' : (avvio ? ' IN AVVIO' : ' OFFLINE'));
     if (svcPrev[id] !== esito) {
       svcPrev[id] = esito;
-      aggiungiLog((nomeLog || nome) + (esito === 'ok' ? ' online' : ' offline'), esito === 'ok' ? 'ok' : 'warn');
+      aggiungiLog((nomeLog || nome) + (esito === 'ok' ? ' online' : (avvio ? ' in avvio...' : ' offline')),
+                  esito === 'ok' ? 'ok' : (avvio ? 'info' : 'warn'));
     }
   }
   let immaginePrev = null;
+  // Finche' la dashboard non ha mai raggiunto il server (per 2 minuti dall'apertura), il server e' "in avvio"
+  let maiConnesso = true;
+  const aperturaDashboard = Date.now();
 
   async function aggiornaStato() {
     let risposto = false;
@@ -798,6 +805,7 @@
       const res = await fetch(SERVER);
       const data = await res.json();
       risposto = true;
+      maiConnesso = false;
       
       setSvc('svc-server', 'SERVER AURA', 'ok', 'Server Aura');
       if (data.servizi) {
@@ -877,7 +885,8 @@
       }
     } catch(e) {
       if (risposto) return;  // errore interno alla dashboard, il server risponde
-      setSvc('svc-server', 'SERVER AURA', 'off', 'Server Aura');
+      const inAvvio = maiConnesso && Date.now() - aperturaDashboard < 120000;
+      setSvc('svc-server', 'SERVER AURA', inAvvio ? 'avvio' : 'off', 'Server Aura');
       // senza il server non posso sapere lo stato degli altri servizi
       ['lm:LM STUDIO', 'comfy:COMFYUI', 'tts:EDGE TTS'].forEach(x => {
         const [k, n] = x.split(':'), el = document.getElementById('svc-' + k);
