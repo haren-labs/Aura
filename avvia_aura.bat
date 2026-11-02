@@ -133,7 +133,7 @@ echo.
 timeout /t 3 /nobreak > nul
 
 echo [5/7] Avvio il server di Aura...
-start "Aura Server" cmd /k ""%PYTHON%" aura_server.py"
+start "Aura Server" cmd /k ""%PYTHON%" main.py"
 echo      OK - server FastAPI su porta 8888 (prova: /docs), dashboard su porta 8000
 echo.
 

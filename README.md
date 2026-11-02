@@ -81,9 +81,9 @@ Hardware di riferimento: RTX 3050 8 GB e 16 GB di RAM reggono tutto, ma con marg
    pip install -r requirements.txt
    ```
    Per usare la GPU con Whisper serve PyTorch con CUDA: segui le istruzioni su [pytorch.org](https://pytorch.org).
-3. Apri `aura_server.py` e modifica la sezione **CONFIGURAZIONE** in alto: almeno `NOME_UTENTE`, e se vuoi `GENERE_UTENTE` e `PROFILO_UTENTE`.
+3. Copia `config_locale.esempio.py` con il nome **`config_locale.py`** e scrivici le tue impostazioni: almeno `NOME_UTENTE`, e se vuoi `GENERE_UTENTE` e `PROFILO_UTENTE`. Tutti i valori possibili, con i predefiniti, sono in `config.py`: in `config_locale.py` scrivi solo quelli che vuoi cambiare. Il file resta solo sul tuo PC (è nel `.gitignore`).
 4. Apri `avvia_aura.bat` con un editor di testo e correggi in alto `COMFYUI_DIR`, e se servono `DOCKER_EXE`, `LMSTUDIO_EXE`, `PYTHON_COMFYUI` (solo se ComfyUI usa un Python diverso da quello di Aura) e `MODELLO` (il nome esatto del modello, lo vedi con `lms ls`).
-5. Il nome del modello deve coincidere con `MODEL` in `aura_server.py`. Se preferisci l'avvio manuale, in LM Studio carica il modello e **avvia il server locale** (porta 1234).
+5. Il nome del modello deve coincidere con `MODEL` (in `config.py`, oppure nel tuo `config_locale.py`). Se preferisci l'avvio manuale, in LM Studio carica il modello e **avvia il server locale** (porta 1234).
 6. (Facoltativo) Esegui `crea_collegamento_aura.bat` per avere un'icona "Aura" sul Desktop.
 
 ## Avvio
@@ -98,7 +98,7 @@ Fai doppio clic su `avvia_aura.bat`. Lo script:
 
 Quindi **Aura si avvia con un solo comando**. La mia versione personale di questo script funziona sul mio PC (Windows 11); la versione condivisa qui è la stessa logica con i percorsi configurabili, ma **non l'ho ancora provata su un'installazione pulita**: potresti dover correggere i percorsi in cima al `.bat`. Se il comando `lms` non è disponibile, il resto parte comunque e LM Studio va avviato a mano.
 
-Per avviare solo il server: `python aura_server.py`. Con il server acceso, la pagina `http://127.0.0.1:8888/docs` elenca tutte le API e permette di provarle dal browser.
+Per avviare solo il server: `python main.py`. Con il server acceso, la pagina `http://127.0.0.1:8888/docs` elenca tutte le API e permette di provarle dal browser.
 
 ## Uso
 
@@ -132,6 +132,8 @@ Il server usa [FastAPI](https://fastapi.tiangolo.com). Con Aura accesa apri **`h
 | `POST /transcribe` | Riceve un file audio (mp3, wav, ogg, webm...) e lo trascrive con Whisper |
 | `POST /speak` | Trasforma un testo in voce e restituisce un file MP3 |
 | `POST /search` | Ricerca web, risultati con titolo, testo e link |
+| `GET /servizi` | Stato leggero dei servizi (LM Studio, ComfyUI, voce), senza chat e immagini |
+| `GET /jobs` | Facoltativo: ricerca di offerte di lavoro con le query di `RICERCHE_LAVORO` (vedi `config.py`); spento se non configurato |
 | `POST /messaggio`, `POST /ascolta`, `POST /interfaccia` | Usati dalla dashboard: messaggio scritto, microfono, interruttori |
 
 Esempio da un CMD di Windows:
@@ -168,7 +170,7 @@ Il bot non apre porte sul PC: è lui a chiedere a Telegram i messaggi nuovi ("lo
 
 ## Personalizzare Aura
 
-La personalità è nel prompt `_PROMPT_BASE` di `aura_server.py`. Per dirle qualcosa di te usa `PROFILO_UTENTE` nella configurazione. Prima di modificare il prompt leggi [Cosa ho imparato](#cosa-ho-imparato): con un modello piccolo certi dettagli (dove metti le regole, come descrivi le tue informazioni) cambiano molto il risultato.
+La personalità è nel prompt `_PROMPT_BASE` di `prompt.py`. Per dirle qualcosa di te usa `PROFILO_UTENTE` in `config_locale.py`. Se vuoi un prompt tutto tuo senza toccare `prompt.py`, crea `prompt_personale.py` con una variabile `SYSTEM_PROMPT`: Aura userà quello (anche questo file è nel `.gitignore`). Prima di modificare il prompt leggi [Cosa ho imparato](#cosa-ho-imparato): con un modello piccolo certi dettagli (dove metti le regole, come descrivi le tue informazioni) cambiano molto il risultato.
 
 ## Memoria e privacy
 
@@ -230,6 +232,7 @@ Aura gira su un modello piccolo (pochi miliardi di parametri) e su una scheda da
 - **La voce online va protetta dagli errori passeggeri.** Il servizio Edge TTS ogni tanto risponde 403/500. Riprovare fino a 3 volte e, se una parte fallisce, saltarla senza bloccare le successive evita le risposte lette a metà.
 - **Dipendere da un servizio online significa che un giorno si rompe.** A metà ottobre 2026 Microsoft ha cambiato il controllo sul servizio vocale e la voce di Aura ha smesso di funzionare da un momento all'altro, senza che avessi toccato niente. La causa non era nel mio codice né in Docker, ma nella libreria `edge-tts` dentro il container: l'ho trovata cercando l'errore esatto (`403 Invalid response status`) tra le segnalazioni del progetto, e si è risolta aggiornando la libreria. Morale: quando una cosa che funzionava si rompe, controlla anche se è rotta per tutti prima di cambiare la tua configurazione.
 - **Cambiare il "motore" senza toccare la carrozzeria.** Il primo server usava `http.server` della libreria standard, con un'unica funzione piena di `if` per ogni indirizzo. Passando a FastAPI ho tenuto identici indirizzi e porte usati dalla dashboard, così l'interfaccia ha continuato a funzionare senza modifiche, e ho aggiunto un endpoint alla volta (`/chat`, `/image`, `/vision`, `/transcribe`, `/speak`, `/search`), provandolo subito dalla pagina `/docs` prima di passare al successivo. Le API separate servono a usare Aura anche da altro (un bot, un'app sul telefono), non solo dalla dashboard.
+- **Dividere il codice per funzionalità.** Il server era un unico file di quasi 800 righe. Su consiglio di un AI engineer l'ho diviso in moduli (configurazione, memoria, voce, visione, immagini, ricerca, API): le prestazioni non cambiano, ma chi apre il codice capisce subito dove sta cosa, e quando modifico la voce tocco solo `voce.py`. Un vantaggio in più: le impostazioni e il prompt personali stanno in file separati esclusi da Git, quindi la mia versione e quella pubblicata sono lo stesso codice.
 - **Una libreria rinominata può fallire in silenzio.** La ricerca web restituiva liste vuote senza errori: il pacchetto `duckduckgo_search` è stato rinominato in `ddgs` e la versione vecchia non trova più risultati. Un endpoint dedicato (`/search`) che mostra i risultati "grezzi" l'ha reso evidente in un minuto.
 - **Controlla quale Python usi.** Su Windows `python` e `py -3.12` possono puntare a installazioni diverse: i pacchetti risultano "mancanti" pur essendo installati. Provare con il percorso completo dell'interprete lo chiarisce subito.
 - **Quando l'audio non parte, controlla Windows prima del codice.** Volume, uscita predefinita e Mixer volume hanno causato più problemi del software. Un semplice `winsound.Beep` dice in un secondo se il problema è lì.
@@ -258,7 +261,19 @@ Funzioni come la visione in tempo reale o un avatar animato diventano possibili 
 ## Struttura
 
 ```
-aura_server.py          server FastAPI: API, voce, ascolto, LM Studio, immagini, memoria, ricerca web
+main.py                 avvio del server (python main.py)
+config.py               impostazioni predefinite
+config_locale.esempio.py   esempio di impostazioni personali (da copiare in config_locale.py)
+prompt.py               la personalità di Aura (prompt di sistema)
+api.py                  le API FastAPI e il server della dashboard
+cervello.py             dialogo con LM Studio, contesto e cronologia
+memoria.py              ricordi tra le sessioni (aura_memoria.json)
+voce.py                 ascolto (Whisper) e voce (Edge TTS)
+visione.py              webcam
+immagini.py             generazione immagini con ComfyUI
+ricerca.py              ricerca web (DuckDuckGo)
+servizi.py              stato di LM Studio, ComfyUI, voce, RAM e GPU
+stato.py                stato condiviso letto dalla dashboard
 aura_telegram.py        bot Telegram facoltativo (testo, vocali, foto)
 dashboard/              interfaccia web
 avvia_aura.bat          avvio di tutto (Docker, LM Studio, ComfyUI, server, dashboard)

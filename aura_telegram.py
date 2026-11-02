@@ -1,7 +1,7 @@
 """Aura su Telegram: inoltra i tuoi messaggi al server di Aura (/chat) e ti manda le risposte.
 
 Avvio:  python aura_telegram.py   (oppure lo avvia avvia_aura.bat, se e' configurato)
-Serve che il server di Aura (aura_server.py) sia acceso. Istruzioni nel README, sezione "Telegram".
+Serve che il server di Aura (main.py) sia acceso. Istruzioni nel README, sezione "Telegram".
 """
 import os
 import json
