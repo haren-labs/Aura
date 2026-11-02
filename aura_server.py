@@ -305,7 +305,7 @@ stato = {
     "interfacce": {"microfono": True, "webcam": True},
     "gpu": None,
     "modello": MODEL,
-    "servizi": {"lm": "off", "comfy": "off", "tts": "off"},
+    "servizi": None,   # None = non ancora controllati: la dashboard aspetta il primo controllo vero
     "ultima_immagine_nome": None,
     "scambi": 0
 }

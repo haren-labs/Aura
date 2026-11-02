@@ -10,6 +10,7 @@ The idea behind the project: a local assistant with voice, vision and memory **d
 
 - Stack: Python, FastAPI, LM Studio (vision model, tested with Gemma 4), Whisper, Edge TTS (Docker), ComfyUI, DuckDuckGo search, browser dashboard.
 - REST API with interactive docs at `/docs`: chat, image generation, vision, speech-to-text, text-to-speech, web search.
+- Optional Telegram bot: talk to Aura from your phone with text, voice notes and photos (messages go through Telegram's servers).
 - Windows 11 only for now.
 - The interface, the voice and the documentation below are in Italian.
 - Shared as is: it works, but it's not a polished product.
@@ -24,6 +25,7 @@ La idea del proyecto: una asistente local con voz, visión y memoria **no necesi
 
 - Tecnologías: Python, FastAPI, LM Studio (modelo con visión, probado con Gemma 4), Whisper, Edge TTS (Docker), ComfyUI, búsqueda con DuckDuckGo, panel en el navegador.
 - API REST con documentación interactiva en `/docs`: chat, generación de imágenes, visión, voz a texto, texto a voz, búsqueda web.
+- Bot de Telegram opcional: habla con Aura desde el móvil con texto, notas de voz y fotos (los mensajes pasan por los servidores de Telegram).
 - Por ahora solo Windows 11.
 - La interfaz, la voz y la documentación de abajo están en italiano.
 - Se comparte tal cual: funciona, pero no es un producto pulido.
@@ -53,6 +55,7 @@ Tutto resta sul tuo computer: niente abbonamenti, niente conversazioni mandate a
 - **Ricerca sul web** (DuckDuckGo) per notizie e informazioni recenti.
 - **Memoria tra le sessioni** in un file locale (`aura_memoria.json`, mai pubblicato).
 - **Dashboard** nel browser, con interruttori per microfono e webcam.
+- **Telegram (facoltativo)**: parli con Aura dal telefono, con messaggi scritti, vocali (risponde anche a voce) e foto. Vedi la sezione [Telegram](#telegram-facoltativo).
 - **API con FastAPI**: ogni funzione ha il suo indirizzo (chat, immagini, visione, voce, ricerca), documentato e provabile dalla pagina `/docs`. Così altri programmi possono usare Aura, non solo la dashboard.
 
 ## Requisiti
@@ -90,7 +93,7 @@ Fai doppio clic su `avvia_aura.bat`. Lo script:
 1. avvia Docker Desktop se è spento e aspetta che sia pronto;
 2. avvia (o crea la prima volta) il container della voce;
 3. avvia LM Studio se è chiuso, accende il suo server locale e carica il modello (tramite il comando `lms`);
-4. avvia ComfyUI e il server di Aura;
+4. avvia ComfyUI, il server di Aura e, se l'hai configurato, il bot Telegram;
 5. apre la dashboard su `http://127.0.0.1:8000/aura_dashboard.html`.
 
 Quindi **Aura si avvia con un solo comando**. La mia versione personale di questo script funziona sul mio PC (Windows 11); la versione condivisa qui è la stessa logica con i percorsi configurabili, ma **non l'ho ancora provata su un'installazione pulita**: potresti dover correggere i percorsi in cima al `.bat`. Se il comando `lms` non è disponibile, il resto parte comunque e LM Studio va avviato a mano.
@@ -139,6 +142,30 @@ curl -X POST http://127.0.0.1:8888/chat -H "Content-Type: application/json" -d "
 
 Per default il server ascolta solo su questo PC (`HOST = "127.0.0.1"`). Se vuoi raggiungerlo da altri dispositivi della tua rete metti `HOST = "0.0.0.0"`, sapendo che **le API non hanno password**: chiunque sia sulla stessa rete può usarle.
 
+## Telegram (facoltativo)
+
+Con il bot Telegram puoi parlare con Aura dal telefono, anche fuori casa:
+
+- **messaggi scritti** → risponde per scritto (se disegna qualcosa, ti manda l'immagine);
+- **vocali** → ti scrive cosa ha capito, risponde per scritto **e con un vocale**;
+- **foto** → le descrive; se aggiungi una didascalia ("che modello è?"), quella diventa la domanda.
+
+**Privacy: con Telegram i messaggi passano dai server di Telegram.** Il modello, la memoria e il resto restano sul tuo PC, ma il testo, i vocali e le foto che scambi con il bot transitano da Telegram. Per le conversazioni personali usa la dashboard.
+
+Il bot è **spento di default**: parte solo dopo che l'hai configurato.
+
+1. Su Telegram apri **@BotFather** (quello ufficiale, con la spunta blu), scrivi `/newbot` e scegli un nome e uno username (deve finire con `bot`). BotFather ti dà un **token**: è come una password, non condividerlo.
+2. Avvia una volta `python aura_telegram.py`: crea il file `aura_telegram_config.json` e si ferma.
+3. Apri `aura_telegram_config.json` con un editor di testo e incolla il token al posto di `INCOLLA_QUI_IL_TOKEN_DI_BOTFATHER` (tra le virgolette).
+4. Con il server di Aura acceso, riavvia `python aura_telegram.py` e scrivi al tuo bot: ti risponde con il **tuo ID Telegram**. Finché l'ID non è configurato, il bot non passa nessun messaggio ad Aura.
+5. Metti il tuo ID in `"id_autorizzato"` (senza virgolette) e riavvia il bot. Da qui in poi risponde **solo a te**: i messaggi di altri vengono ignorati.
+
+`avvia_aura.bat` avvia il bot da solo quando trova `aura_telegram.py` e `aura_telegram_config.json`. Per non ricevere risposte vocali metti `"risposta_vocale": false` nel file di configurazione.
+
+`aura_telegram_config.json` è nel `.gitignore`: **non pubblicarlo mai**, contiene il token.
+
+Il bot non apre porte sul PC: è lui a chiedere a Telegram i messaggi nuovi ("long polling") e a passarli al server di Aura su `127.0.0.1`.
+
 ## Personalizzare Aura
 
 La personalità è nel prompt `_PROMPT_BASE` di `aura_server.py`. Per dirle qualcosa di te usa `PROFILO_UTENTE` nella configurazione. Prima di modificare il prompt leggi [Cosa ho imparato](#cosa-ho-imparato): con un modello piccolo certi dettagli (dove metti le regole, come descrivi le tue informazioni) cambiano molto il risultato.
@@ -149,6 +176,7 @@ La personalità è nel prompt `_PROMPT_BASE` di `aura_server.py`. Per dirle qual
 - Quel file e `temp/` sono nel `.gitignore`: **non committarli mai**.
 - Se Aura sbaglia, la risposta sbagliata finisce nei ricordi e può peggiorare quelle successive: puoi aprire il file e togliere le voci problematiche.
 - La voce usa il servizio online di Microsoft tramite Edge TTS, quindi il testo che Aura pronuncia passa da internet (il resto resta in locale).
+- Se usi il bot Telegram, i messaggi che scambi con il bot passano dai server di Telegram (vedi [Telegram](#telegram-facoltativo)).
 
 ## Risoluzione dei problemi
 
@@ -207,6 +235,19 @@ Aura gira su un modello piccolo (pochi miliardi di parametri) e su una scheda da
 - **Quando l'audio non parte, controlla Windows prima del codice.** Volume, uscita predefinita e Mixer volume hanno causato più problemi del software. Un semplice `winsound.Beep` dice in un secondo se il problema è lì.
 - **8 GB di VRAM sono il minimo, non il comfort.** Modello linguistico, riconoscimento vocale e generazione immagini si contendono la memoria: funziona, ma conviene non avviare tutto insieme su macchine più piccole.
 
+## Su hardware più potente
+
+Aura è progettata a moduli: ogni servizio (LM Studio, Whisper, ComfyUI, la voce) è separato e comunica con il server tramite HTTP. Su un PC più potente alcune parti si potenziano cambiando la configurazione, altre richiedono adattamenti mirati.
+
+| Componente | Come si potenzia |
+|---|---|
+| Modello linguistico | Basta caricarne uno più grande in LM Studio e aggiornare `MODEL` (e `MODELLO` nel `.bat`). Per webcam e foto serve un modello con visione. |
+| Riconoscimento vocale | `WHISPER_MODEL`: da `medium` a un modello più grande, per trascrizioni più precise. |
+| Generazione immagini | Con più VRAM si possono alzare `HIRES_BASE` e `HIRES_SCALE`. Per modelli più moderni (es. SDXL) il workflow di ComfyUI va adattato: è scritto per Stable Diffusion 1.5. |
+| Prompt | È calibrato su un modello piccolo (regole in maiuscolo, promemoria finale). Con un modello più grande va riprovato: alcune regole potrebbero non servire più. |
+
+Funzioni come la visione in tempo reale o un avatar animato diventano possibili con più risorse, ma vanno costruite: non basta cambiare la configurazione.
+
 ## Limiti noti
 
 - Funziona solo su Windows (per ora).
@@ -218,6 +259,7 @@ Aura gira su un modello piccolo (pochi miliardi di parametri) e su una scheda da
 
 ```
 aura_server.py          server FastAPI: API, voce, ascolto, LM Studio, immagini, memoria, ricerca web
+aura_telegram.py        bot Telegram facoltativo (testo, vocali, foto)
 dashboard/              interfaccia web
 avvia_aura.bat          avvio di tutto (Docker, LM Studio, ComfyUI, server, dashboard)
 crea_collegamento_aura.bat   collegamento sul Desktop con l'icona

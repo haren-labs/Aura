@@ -21,7 +21,7 @@ echo   AURA - AVVIO IN CORSO...
 echo  ================================================
 echo.
 
-echo [1/6] Controllo Docker Desktop...
+echo [1/7] Controllo Docker Desktop...
 docker info >nul 2>&1
 if %errorlevel%==0 goto docker_ok
 echo      Docker non attivo, lo avvio...
@@ -44,7 +44,7 @@ goto docker_attesa
 :docker_ok
 echo      OK - Docker attivo
 echo.
-echo [2/6] Avvio il container della voce (Edge TTS)...
+echo [2/7] Avvio il container della voce (Edge TTS)...
 docker start %CONTAINER_TTS% >nul 2>&1
 if not errorlevel 1 goto voce_ok
 echo      Creo il container della voce (prima volta)...
@@ -71,7 +71,7 @@ echo      Il resto parte comunque, ma Aura non potra' parlare.
 echo.
 
 :lmstudio
-echo [3/6] Avvio LM Studio e carico il modello...
+echo [3/7] Avvio LM Studio e carico il modello...
 where lms >nul 2>&1
 if errorlevel 1 goto lm_nolms
 tasklist /FI "IMAGENAME eq LM Studio.exe" 2>nul | find /I "LM Studio.exe" >nul
@@ -120,7 +120,7 @@ echo      e avvia il server locale (porta 1234).
 echo.
 
 :avanti
-echo [4/6] Avvio ComfyUI...
+echo [4/7] Avvio ComfyUI...
 if not exist "%COMFYUI_DIR%\main.py" goto comfy_ko
 start "ComfyUI" /d "%COMFYUI_DIR%" cmd /k ""%PYTHON_COMFYUI%" main.py"
 echo      OK - ComfyUI avviato su porta 8188
@@ -132,14 +132,25 @@ echo.
 
 timeout /t 3 /nobreak > nul
 
-echo [5/6] Avvio il server di Aura...
+echo [5/7] Avvio il server di Aura...
 start "Aura Server" cmd /k ""%PYTHON%" aura_server.py"
 echo      OK - server FastAPI su porta 8888 (prova: /docs), dashboard su porta 8000
 echo.
 
+echo [6/7] Bot Telegram (facoltativo)...
+if not exist "aura_telegram.py" goto tg_salta
+if not exist "aura_telegram_config.json" goto tg_salta
+start "Aura Telegram" cmd /k ""%PYTHON%" aura_telegram.py"
+echo      OK - bot Telegram avviato (risponde quando il server di Aura e' pronto)
+goto tg_fine
+:tg_salta
+echo      SALTATO: bot Telegram non configurato (vedi README, sezione Telegram)
+:tg_fine
+echo.
+
 timeout /t 10 /nobreak > nul
 
-echo [6/6] Apro la dashboard nel browser...
+echo [7/7] Apro la dashboard nel browser...
 start "" "http://127.0.0.1:8000/aura_dashboard.html"
 echo      OK - dashboard aperta
 echo.
