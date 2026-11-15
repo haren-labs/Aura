@@ -1,0 +1,16 @@
+{
+  "name": "Aura",
+  "short_name": "Aura",
+  "description": "Aura, la mia IA locale, dal telefono",
+  "start_url": "/m/aura_mobile.html",
+  "scope": "/m/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#01050c",
+  "theme_color": "#01050c",
+  "icons": [
+    { "src": "aura_icona_192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "aura_icona_512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "aura_icona_maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
