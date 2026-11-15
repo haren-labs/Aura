@@ -242,6 +242,12 @@ def jobs():
         print(f"ERRORE /jobs: {e}")
         return {"ok": False, "motivo": f"ricerca non riuscita: {e}"}
 
+# ---------------------------------------------------------------- pagine anche sulla porta delle API
+# La dashboard mobile e' raggiungibile anche da http(s)://<indirizzo>:8888/m/aura_mobile.html:
+# cosi' pagina e API stanno sullo stesso indirizzo (serve per Tailscale, che espone una porta sola).
+# Va montata DOPO gli endpoint, altrimenti coprirebbe gli altri indirizzi.
+app.mount("/m", StaticFiles(directory=CARTELLA_DASHBOARD, html=True), name="pagine")
+
 # ---------------------------------------------------------------- server della dashboard
 # Serve i file della cartella CARTELLA_DASHBOARD
 dashboard = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)

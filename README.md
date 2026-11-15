@@ -10,7 +10,9 @@ The idea behind the project: a local assistant with voice, vision and memory **d
 
 - Stack: Python, FastAPI, LM Studio (vision model, tested with Gemma 4), Whisper, Edge TTS (Docker), ComfyUI, DuckDuckGo search, browser dashboard.
 - REST API with interactive docs at `/docs`: chat, image generation, vision, speech-to-text, text-to-speech, web search.
+- Phone app (PWA): hold-to-talk voice, camera and gallery photos, installable on the home screen. It reaches your PC privately through Tailscale, from home or outside, without exposing anything to the internet.
 - Optional Telegram bot: talk to Aura from your phone with text, voice notes and photos (messages go through Telegram's servers).
+- Demo mode: one switch makes Aura forget your name and memory, for videos and screenshots.
 - Windows 11 only for now.
 - The interface, the voice and the documentation below are in Italian.
 - Shared as is: it works, but it's not a polished product.
@@ -25,7 +27,9 @@ La idea del proyecto: una asistente local con voz, visión y memoria **no necesi
 
 - Tecnologías: Python, FastAPI, LM Studio (modelo con visión, probado con Gemma 4), Whisper, Edge TTS (Docker), ComfyUI, búsqueda con DuckDuckGo, panel en el navegador.
 - API REST con documentación interactiva en `/docs`: chat, generación de imágenes, visión, voz a texto, texto a voz, búsqueda web.
+- App para el móvil (PWA): voz manteniendo pulsado, fotos de la cámara o la galería, instalable en la pantalla de inicio. Llega a tu PC de forma privada a través de Tailscale, en casa o fuera, sin exponer nada a internet.
 - Bot de Telegram opcional: habla con Aura desde el móvil con texto, notas de voz y fotos (los mensajes pasan por los servidores de Telegram).
+- Modo demo: un interruptor hace que Aura olvide tu nombre y tu memoria, para vídeos y capturas.
 - Por ahora solo Windows 11.
 - La interfaz, la voz y la documentación de abajo están en italiano.
 - Se comparte tal cual: funciona, pero no es un producto pulido.
@@ -55,6 +59,8 @@ Tutto resta sul tuo computer: niente abbonamenti, niente conversazioni mandate a
 - **Ricerca sul web** (DuckDuckGo) per notizie e informazioni recenti.
 - **Memoria tra le sessioni** in un file locale (`aura_memoria.json`, mai pubblicato).
 - **Dashboard** nel browser, con interruttori per microfono e webcam.
+- **App sul telefono (facoltativo)**: tieni premuto e parli, scatti una foto o la scegli dalla galleria, Aura risponde per scritto e a voce. Si installa come un'app sulla schermata Home e raggiunge il PC in modo privato tramite Tailscale, anche fuori casa. Vedi [Aura sul telefono](#aura-sul-telefono-facoltativo).
+- **Modalità demo**: un interruttore per registrare video e screenshot senza nome e senza ricordi personali. Vedi [Modalità demo](#modalità-demo).
 - **Telegram (facoltativo)**: parli con Aura dal telefono, con messaggi scritti, vocali (risponde anche a voce) e foto. Vedi la sezione [Telegram](#telegram-facoltativo).
 - **API con FastAPI**: ogni funzione ha il suo indirizzo (chat, immagini, visione, voce, ricerca), documentato e provabile dalla pagina `/docs`. Così altri programmi possono usare Aura, non solo la dashboard.
 
@@ -135,6 +141,7 @@ Il server usa [FastAPI](https://fastapi.tiangolo.com). Con Aura accesa apri **`h
 | `GET /servizi` | Stato leggero dei servizi (LM Studio, ComfyUI, voce), senza chat e immagini |
 | `GET /jobs` | Facoltativo: ricerca di offerte di lavoro con le query di `RICERCHE_LAVORO` (vedi `config.py`); spento se non configurato |
 | `POST /messaggio`, `POST /ascolta`, `POST /interfaccia` | Usati dalla dashboard: messaggio scritto, microfono, interruttori |
+| `GET /m/aura_mobile.html` | L'app per il telefono, servita dalla stessa porta delle API (vedi [Aura sul telefono](#aura-sul-telefono-facoltativo)) |
 
 Esempio da un CMD di Windows:
 
@@ -143,6 +150,45 @@ curl -X POST http://127.0.0.1:8888/chat -H "Content-Type: application/json" -d "
 ```
 
 Per default il server ascolta solo su questo PC (`HOST = "127.0.0.1"`). Se vuoi raggiungerlo da altri dispositivi della tua rete metti `HOST = "0.0.0.0"`, sapendo che **le API non hanno password**: chiunque sia sulla stessa rete può usarle.
+
+## Aura sul telefono (facoltativo)
+
+![Aura sul telefono](docs/aura_app_demo.gif)
+
+Una pagina web pensata per lo smartphone, che si installa come un'app:
+
+- **voce**: tieni premuto il pulsante del microfono, parli, rilasci. Aura scrive cosa ha capito, risponde per scritto e poi **parla dal telefono**;
+- **foto**: con la graffetta scegli **Scatta** (fotocamera) o **Galleria**. Puoi inviarla così, aggiungere una domanda scritta o farla a voce. Le foto vengono rimpicciolite sul telefono prima dell'invio, quindi viaggiano veloci;
+- **app**: si aggiunge alla schermata Home con l'icona della stella blu e si apre a schermo intero. Se il PC non risponde, mostra una schermata "non raggiungibile" con il pulsante per riprovare.
+
+**Perché Tailscale.** I browser del telefono danno il microfono solo alle pagine in **HTTPS**. Invece di aprire porte sul router o mettere Aura su internet, uso [Tailscale](https://tailscale.com): crea una rete privata tra i tuoi dispositivi (il PC e il telefono) e fornisce l'indirizzo HTTPS. Funziona allo stesso modo in casa e fuori casa, anche con i dati mobili. Il server di Aura resta su `HOST = "127.0.0.1"`, cioè chiuso verso la rete di casa.
+
+### Configurazione (una volta sola)
+
+1. **Sul PC** installa Tailscale e accedi con il tuo account. Da un CMD:
+   ```
+   winget install --id Tailscale.Tailscale -e
+   ```
+   oppure scaricalo da [tailscale.com/download](https://tailscale.com/download).
+2. **Sul telefono** installa l'app Tailscale e accedi con **lo stesso account**. Nell'app, PC e telefono devono comparire entrambi.
+3. **Sul PC**, con Aura accesa, rendi il server raggiungibile dalla tua rete Tailscale:
+   ```
+   tailscale serve --bg http://127.0.0.1:8888
+   ```
+   La prima volta Tailscale può chiederti di attivare i certificati HTTPS per la tua rete: segui il link che compare. Alla fine ti mostra un indirizzo del tipo `https://nome-pc.qualcosa.ts.net/`.
+   L'impostazione resta salvata anche dopo il riavvio: non serve ripetere il comando.
+4. **Sul telefono**, con Tailscale attivo, apri nel browser:
+   ```
+   https://nome-pc.qualcosa.ts.net/m/aura_mobile.html
+   ```
+   Alla prima pressione del microfono il browser chiede il permesso: consentilo.
+5. **Per installarla come app**: menu del browser → **Installa app** (o **Aggiungi a schermata Home**).
+
+**Attenzione: usa `tailscale serve`, non `tailscale funnel`.** `serve` rende Aura visibile solo ai tuoi dispositivi; `funnel` la pubblicherebbe su internet, e **le API di Aura non hanno password**.
+
+**Privacy.** Il collegamento tra telefono e PC è cifrato da Tailscale. A differenza di Telegram, nessun servizio esterno legge i tuoi messaggi: testo, voce e foto vanno direttamente dal telefono al tuo PC. La voce di Aura passa comunque da Edge TTS, come sul PC (vedi [Memoria e privacy](#memoria-e-privacy)).
+
+Il PC deve essere acceso, con Aura e Tailscale attivi. Su Android, se installi l'app da un browser diverso da Chrome, l'icona può mostrare il piccolo logo del browser: è normale.
 
 ## Telegram (facoltativo)
 
@@ -180,6 +226,22 @@ La personalità è nel prompt `_PROMPT_BASE` di `prompt.py`. Per dirle qualcosa 
 - La voce usa il servizio online di Microsoft tramite Edge TTS, quindi il testo che Aura pronuncia passa da internet (il resto resta in locale).
 - Se usi il bot Telegram, i messaggi che scambi con il bot passano dai server di Telegram (vedi [Telegram](#telegram-facoltativo)).
 
+## Modalità demo
+
+Per registrare un video o fare screenshot senza mostrare il tuo nome o i tuoi ricordi, aggiungi in `config_locale.py`:
+
+```python
+MODALITA_DEMO = True
+```
+
+e riavvia il server. In modalità demo Aura:
+
+- usa il prompt generico invece del tuo, e chiama l'utente solo "chi ti parla";
+- **non legge** i ricordi di `aura_memoria.json`;
+- **non salva** le conversazioni, quindi la demo non finisce nei ricordi veri.
+
+All'avvio la finestra del server scrive "Prompt modalita demo caricato". Finito il video, rimetti `MODALITA_DEMO = False` (o cancella la riga) e riavvia: Aura torna quella di sempre, con la sua memoria intatta. Il valore di fabbrica, in `config.py`, è `False`.
+
 ## Risoluzione dei problemi
 
 | Problema | Cosa fare |
@@ -192,6 +254,8 @@ La personalità è nel prompt `_PROMPT_BASE` di `prompt.py`. Per dirle qualcosa 
 | `avvia_aura.bat` dice che Docker Desktop non è stato trovato | Docker è installato in una cartella diversa da quella standard. Con Docker Desktop aperto, esegui `powershell -command "(Get-Process 'Docker Desktop').Path"`: compaiono più righe, e quella da usare è la **principale** (quella che *non* contiene `\frontend\`). Copiala in `DOCKER_EXE` all'inizio del `.bat`. |
 | All'avvio compare `[Errno 10048]` sulla porta 8888 o 8000 | Le porte sono già occupate da un altro server di Aura rimasto acceso. Chiudi il CMD "Aura Server" vecchio (o trova il processo con `netstat -ano \| findstr :8888`) e riavvia. |
 | Niente immagini | Verifica che ComfyUI sia avviato (porta 8188) e che `COMFY_CHECKPOINT` esista in `models/checkpoints`. |
+| Il microfono dell'app sul telefono resta spento | Il browser lo concede solo in HTTPS: apri la pagina dall'indirizzo `https://...ts.net/m/aura_mobile.html` di Tailscale, non dall'IP di casa. Controlla anche il permesso del microfono nelle impostazioni del browser. |
+| L'app sul telefono dice "non raggiungibile" | Il PC è acceso con Aura avviata? Tailscale è attivo sul telefono e sul PC? |
 | Webcam non disponibile | Prova un altro `WEBCAM_INDEX` (0, 1, 2...) e chiudi le altre app che la usano. |
 | Aura inventa dettagli | Succede con i modelli piccoli. Vedi "Personalizzare Aura" e controlla `aura_memoria.json`. |
 
@@ -236,6 +300,9 @@ Aura gira su un modello piccolo (pochi miliardi di parametri) e su una scheda da
 - **Una libreria rinominata può fallire in silenzio.** La ricerca web restituiva liste vuote senza errori: il pacchetto `duckduckgo_search` è stato rinominato in `ddgs` e la versione vecchia non trova più risultati. Un endpoint dedicato (`/search`) che mostra i risultati "grezzi" l'ha reso evidente in un minuto.
 - **Controlla quale Python usi.** Su Windows `python` e `py -3.12` possono puntare a installazioni diverse: i pacchetti risultano "mancanti" pur essendo installati. Provare con il percorso completo dell'interprete lo chiarisce subito.
 - **Quando l'audio non parte, controlla Windows prima del codice.** Volume, uscita predefinita e Mixer volume hanno causato più problemi del software. Un semplice `winsound.Beep` dice in un secondo se il problema è lì.
+- **Sul telefono, il microfono vuole l'HTTPS.** La pagina mobile funzionava già dall'IP di casa, ma senza HTTPS il browser non dà accesso al microfono. Tailscale ha risolto in un colpo: indirizzo HTTPS, rete privata, e funziona anche fuori casa.
+- **Prova sul dispositivo vero, non solo sul simulatore.** Nei test al computer il pulsante del microfono non rispondeva: gli anelli animati disegnati sopra "rubavano" il tocco (si risolve con `pointer-events: none`). Sul telefono, invece, la graffetta apriva solo la galleria e non la fotocamera: lo si è scoperto solo provando sul telefono, e si è risolto con un menu "Scatta / Galleria".
+- **Un interruttore, non due.** La modalità demo è una sola variabile `True`/`False`: il valore di fabbrica sta in `config.py`, quello personale in `config_locale.py`, che viene letto dopo e quindi vince. È il primo pezzo di Aura che ho scritto da solo mentre imparavo Python, e mi ha insegnato `import`, `if`, `return` e quanto conta l'ordine in cui Python legge i file.
 - **8 GB di VRAM sono il minimo, non il comfort.** Modello linguistico, riconoscimento vocale e generazione immagini si contendono la memoria: funziona, ma conviene non avviare tutto insieme su macchine più piccole.
 
 ## Su hardware più potente
@@ -275,7 +342,8 @@ ricerca.py              ricerca web (DuckDuckGo)
 servizi.py              stato di LM Studio, ComfyUI, voce, RAM e GPU
 stato.py                stato condiviso letto dalla dashboard
 aura_telegram.py        bot Telegram facoltativo (testo, vocali, foto)
-dashboard/              interfaccia web
+dashboard/              interfaccia web: dashboard del PC e app per il telefono
+                        (aura_mobile.html, manifest, service worker, icone)
 avvia_aura.bat          avvio di tutto (Docker, LM Studio, ComfyUI, server, dashboard)
 crea_collegamento_aura.bat   collegamento sul Desktop con l'icona
 aura.ico, aura_blu.ico  icone

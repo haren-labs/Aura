@@ -57,6 +57,10 @@ PAROLE_WEB_EXTRA = []       # altre parole che fanno partire una ricerca web (es
 RICERCHE_LAVORO = {}        # facoltativo: ricerche di offerte di lavoro per /jobs, es.
                             # {"remote": ("prompt engineer remote job", 3), "italia": ("prompt engineer lavoro Italia", 2)}
 
+# --- interruttore demo Aura non usa la memoria e non chiama l utente per nome ---------------------------------------------
+MODALITA_DEMO = False   # all avvio aura  usa la memoria e  chiama l utente per nome
+
+
 # --- cartelle ----------------------------------------------------------------
 MEMORIA_FILE = os.path.join(BASE_DIR, "aura_memoria.json")
 CARTELLA_DASHBOARD = os.path.join(BASE_DIR, "dashboard")

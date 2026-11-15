@@ -2,9 +2,12 @@
 import os
 import json
 from datetime import datetime
-from config import MEMORIA_FILE, MAX_RICORDI, NOME_UTENTE
+from config import MEMORIA_FILE, MAX_RICORDI, NOME_UTENTE, MODALITA_DEMO
 
 def carica_memoria():
+
+    if MODALITA_DEMO:   
+        return""
     if not os.path.exists(MEMORIA_FILE):
         return ""
     try:
@@ -26,6 +29,9 @@ def carica_memoria():
         return ""
 
 def salva_memoria(testo_utente, testo_aura):
+
+    if MODALITA_DEMO:
+        return
     try:
         dati = {"conversazioni": []}
         if os.path.exists(MEMORIA_FILE):

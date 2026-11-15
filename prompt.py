@@ -4,7 +4,7 @@ Se accanto a questo file esiste "prompt_personale.py" con una variabile SYSTEM_P
 Aura usa quello (e' escluso da GitHub). Altrimenti usa il prompt generico qui sotto,
 personalizzato con NOME_UTENTE, GENERE_UTENTE e PROFILO_UTENTE di config.py.
 """
-from config import NOME_UTENTE, GENERE_UTENTE, PROFILO_UTENTE
+from config import NOME_UTENTE, GENERE_UTENTE, PROFILO_UTENTE, MODALITA_DEMO
 
 _PROMPT_BASE = """## IDENTITA'
 Sei Aura, intelligenza digitale e socia di {UTENTE}.
@@ -62,3 +62,10 @@ try:
     print("Prompt personale caricato (prompt_personale.py)")
 except ImportError:
     SYSTEM_PROMPT = _prompt_generico()
+
+if MODALITA_DEMO: 
+    SYSTEM_PROMPT = _PROMPT_BASE.replace("{PROFILO}","").replace("{GENERE}","").replace("{UTENTE}","chi ti parla")
+    print("Prompt modalita demo caricato")  
+    
+   
+    
